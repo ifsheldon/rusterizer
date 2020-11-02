@@ -8,7 +8,7 @@ mod err;
 mod data;
 mod state;
 
-const OBJ_PATH: &'static str = "data/KAUST_Beacon.obj";
+const OBJ_PATH: &'static str = "data/triangle.obj";
 
 fn main() {
     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
@@ -40,7 +40,7 @@ fn main() {
         unsafe {
             let idx1 = mesh.indices.get_unchecked(i);
             let idx2 = mesh.indices.get_unchecked(i + 1);
-            let idx3 = mesh.indices.get_unchecked(i + 1);
+            let idx3 = mesh.indices.get_unchecked(i + 2);
             match map.get_mut(idx1)
             {
                 None => {
@@ -79,7 +79,7 @@ fn main() {
     let mut normals_os = Vec::new();
     let normals_os = Arc::new(Mutex::new(normals_os));
     let positions_os = &positions_os;
-    map.par_iter().for_each(move |(vertex, adj_point_vertices)| {
+    map.par_iter().for_each(|(vertex, adj_point_vertices)| {
         unsafe {
             let v_p = positions_os.get_unchecked((*vertex) as usize);
             let mut vn = Vec3::new(0.0);
@@ -98,6 +98,5 @@ fn main() {
             normals_os.push((*vertex, vn));
         }
     });
-
     println!("OK");
 }
