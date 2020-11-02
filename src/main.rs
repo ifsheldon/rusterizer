@@ -32,7 +32,6 @@ fn main() {
             }
     }).collect();
 
-
     // get adj vertices
     for i in (0..mesh.indices.len()).step_by(3)
     {
@@ -75,7 +74,6 @@ fn main() {
         }
     }
 
-    let positions_os = &positions_os;
     let mut normals_os: Vec<(u32, Vec3)> = map.par_iter().map(|(vertex, adj_point_vertices)| {
         unsafe {
             let v_p = positions_os.get_unchecked((*vertex) as usize);
