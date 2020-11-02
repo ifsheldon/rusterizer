@@ -2,7 +2,7 @@ use std::collections::{HashMap, HashSet};
 use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul};
 use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, mpsc};
 
 mod err;
 mod data;
@@ -18,21 +18,20 @@ fn main() {
     println!("triangle num = {}", mesh.num_face_indices.len());
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
-    let mut positions_os = Vec::<Vec3>::new();
     let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
-
     // get positions
-    for i in (0..mesh.positions.len()).step_by(3)
-    {
+    let idxs: Vec<usize> = (0..mesh.positions.len()).step_by(3).collect();
+    let mut positions_os: Vec<Vec3> = idxs.par_iter().map(|i| {
+        let i = *i;
         unsafe
             {
                 let x = *mesh.positions.get_unchecked(i);
                 let y = *mesh.positions.get_unchecked(i + 1);
                 let z = *mesh.positions.get_unchecked(i + 2);
-                let p = Vec3::new_xyz(x, y, z);
-                positions_os.push(p);
+                return Vec3::new_xyz(x, y, z);
             }
-    }
+    }).collect();
+
 
     // get adj vertices
     for i in (0..mesh.indices.len()).step_by(3)
@@ -76,10 +75,8 @@ fn main() {
         }
     }
 
-    let mut normals_os = Vec::new();
-    let normals_os = Arc::new(Mutex::new(normals_os));
     let positions_os = &positions_os;
-    map.par_iter().for_each(|(vertex, adj_point_vertices)| {
+    let mut normals_os: Vec<(u32, Vec3)> = map.par_iter().map(|(vertex, adj_point_vertices)| {
         unsafe {
             let v_p = positions_os.get_unchecked((*vertex) as usize);
             let mut vn = Vec3::new(0.0);
@@ -94,9 +91,9 @@ fn main() {
                 vn.add_(&n);
             }
             vn.normalize_();
-            let mut normals_os = normals_os.lock().unwrap();
-            normals_os.push((*vertex, vn));
+            return (*vertex, vn);
         }
-    });
+    }).collect();
+    normals_os.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
     println!("OK");
 }
