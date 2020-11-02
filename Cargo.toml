@@ -8,3 +8,5 @@ edition = "2018"
 
 [dependencies]
 tobj = "2.0.2"
+pixel-canvas = "0.2.1"
+rayon = "1.4.1"
