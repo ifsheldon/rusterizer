@@ -15,11 +15,11 @@ fn main() {
     println!("model num = {}", model.len());
     let mesh = &mut model.get_mut(0).unwrap().mesh;
     println!("normal num = {}", mesh.normals.len());
-    let mut positions_os = Vec::<Vec3>::new();
-    let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
     println!("triangle num = {}", mesh.num_face_indices.len());
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
+    let mut positions_os = Vec::<Vec3>::new();
+    let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
 
     // get positions
     for i in (0..mesh.positions.len()).step_by(3)
