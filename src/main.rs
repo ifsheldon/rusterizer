@@ -4,71 +4,77 @@ use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
 use tobj::Mesh;
+use crate::shading::{Vertex, Normal, Camera};
 
 mod err;
 mod data;
 mod state;
 mod transformations;
+mod shading;
 
 const OBJ_PATH: &'static str = "data/triangle.obj";
 const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
 const OBJ_BOUNDING_RADIUS: f32 = 125.0;
 
-pub fn get_position_os(mesh: &Mesh) -> Vec<Vec3>
+pub fn get_position_os(mesh: &Mesh) -> Vec<Vertex>
 {
     let idxs: Vec<usize> = (0..mesh.positions.len()).step_by(3).collect();
-    let positions_os: Vec<Vec3> = idxs.par_iter().map(|i| {
+    let positions_os: Vec<Vertex> = idxs.par_iter().map(|i| {
         let i = *i;
+        let vertex_idx = i / 3;
         unsafe
             {
                 let x = *mesh.positions.get_unchecked(i);
                 let y = *mesh.positions.get_unchecked(i + 1);
                 let z = *mesh.positions.get_unchecked(i + 2);
-                return Vec3::new_xyz(x, y, z);
+                return Vertex {
+                    position: Vec4::new_xyzw(x, y, z, 1.0),
+                    idx: vertex_idx
+                }
             }
     }).collect();
     return positions_os;
 }
 
-pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<u32, Vec<(u32, u32)>>
+pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<usize, Vec<(usize, usize)>>
 {
-    let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
+    let mut map = HashMap::<usize, Vec<(usize, usize)>>::new();
     for i in (0..mesh.indices.len()).step_by(3)
     {
         unsafe {
-            let idx1 = mesh.indices.get_unchecked(i);
-            let idx2 = mesh.indices.get_unchecked(i + 1);
-            let idx3 = mesh.indices.get_unchecked(i + 2);
-            match map.get_mut(idx1)
+            let idx1 = (*mesh.indices.get_unchecked(i)) as usize;
+            let idx2 = (*mesh.indices.get_unchecked(i + 1)) as usize;
+            let idx3 = (*mesh.indices.get_unchecked(i + 2)) as usize;
+            match map.get_mut(&idx1)
             {
                 None => {
-                    let v = vec![(*idx2, *idx3)];
-                    map.insert(*idx1, v);
+                    let v = vec![(idx2, idx3)];
+                    map.insert(idx1, v);
                 }
                 Some(vec) => {
-                    vec.push((*idx2, *idx3));
+                    vec.push((idx2, idx3));
                 }
             }
 
-            match map.get_mut(idx2)
+            match map.get_mut(&idx2)
             {
                 None => {
-                    let v = vec![(*idx3, *idx1)];
-                    map.insert(*idx2, v);
+                    let v = vec![(idx3, idx1)];
+                    map.insert(idx2, v);
                 }
                 Some(vec) => {
-                    vec.push((*idx3, *idx1));
+                    vec.push((idx3, idx1));
                 }
             }
 
-            match map.get_mut(idx3)
+            match map.get_mut(&idx3)
             {
                 None => {
-                    let v = vec![(*idx1, *idx2)];
-                    map.insert(*idx3, v);
+                    let v = vec![(idx1, idx2)];
+                    map.insert(idx3, v);
                 }
                 Some(vec) => {
-                    vec.push((*idx1, *idx2));
+                    vec.push((idx1, idx2));
                 }
             }
         }
@@ -85,45 +91,58 @@ fn main() {
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
 
-    let mut positions_os = get_position_os(mesh);
+    let mut vertices_os = get_position_os(mesh);
     let mut adj_vertices_map = get_adj_vertices(mesh);
 
-    let mut normals_os: Vec<(u32, Vec3)> = adj_vertices_map.par_iter().map(|(vertex, adj_point_vertices)| {
+    let mut normals_os: Vec<Normal> = adj_vertices_map.par_iter().map(|(vertex, adj_point_vertices)| {
         unsafe {
-            let v_p = positions_os.get_unchecked((*vertex) as usize);
+            let mut v_p = vertices_os.get_unchecked(*vertex).position.clone();
+            v_p.scalar_mul_(1.0 / v_p.w());
+            let v_p = Vec3::from(&v_p);
             let mut vn = Vec3::new(0.0);
             for adj_vertices in adj_point_vertices.iter()
             {
-                let v1_p = positions_os.get_unchecked((adj_vertices.0) as usize);
-                let v2_p = positions_os.get_unchecked((adj_vertices.1) as usize);
-                let v_v1 = v1_p._minus(v_p);
-                let v_v2 = v2_p._minus(v_p);
+                let mut v1_p = vertices_os.get_unchecked(adj_vertices.0).position.clone();
+                let mut v2_p = vertices_os.get_unchecked(adj_vertices.1).position.clone();
+                v1_p.scalar_mul_(1.0 / v1_p.w());
+                v2_p.scalar_mul_(1.0 / v2_p.w());
+
+                let v1_p = Vec3::from(&v1_p);
+                let v2_p = Vec3::from(&v2_p);
+                let v_v1 = v1_p._minus(&v_p);
+                let v_v2 = v2_p._minus(&v_p);
+
                 let mut n = v_v1.cross(&v_v2);
                 n.normalize_();
                 vn.add_(&n);
             }
             vn.normalize_();
-            return (*vertex, vn);
+            return Normal {
+                vertex_idx: *vertex,
+                vec: Vec4::from(&vn, 0.0)
+            }
         }
     }).collect();
-    normals_os.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+    normals_os.sort_by(|a, b| a.vertex_idx.partial_cmp(&b.vertex_idx).unwrap());
 
     let identity = Mat4::identity();
     let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
-    let positions_wc: Vec<Vec4> = positions_os.par_iter().map(|p_os| {
-        let p = Vec4::from(p_os, 1.0);
-        return obj_os_to_wc_transformation.mat_vec_dot(&p);
+    let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
+        position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
+        idx: v_os.idx
     }).collect();
 
-    let camera_pos_wc = Vec3::new_xyz(0.0, 0.0, 1.0);
-    let camera_up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
-    let camera_focus_center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
-    let camera_lookat_mat = transformations::look_at(&camera_pos_wc, &camera_focus_center_wc, &camera_up_wc);
-    let positions_ec: Vec<Vec4> = positions_wc.par_iter().map(|p_wc| {
-        let mut p_ec = camera_lookat_mat.mat_vec_dot(p_wc);
+    let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 1.0),
+                             Vec3::new_xyz(0.0, 0.0, 0.0),
+                             Vec3::new_xyz(0.0, 1.0, 0.0));
+    let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
+        let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
         p_ec.scalar_mul_(1.0 / p_ec.w());
-        return p_ec;
+        return Vertex {
+            position: p_ec,
+            idx: v_wc.idx
+        }
     }).collect();
 
     println!("OK");
