@@ -1,5 +1,5 @@
 use std::collections::{HashMap, HashSet};
-use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul};
+use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul, Mat4, Vec4, MatVecDot};
 use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
@@ -107,5 +107,24 @@ fn main() {
         }
     }).collect();
     normals_os.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+
+    let identity = Mat4::identity();
+    let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
+    let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
+    let positions_wc: Vec<Vec4> = positions_os.par_iter().map(|p_os| {
+        let p = Vec4::from(p_os, 1.0);
+        return obj_os_to_wc_transformation.mat_vec_dot(&p);
+    }).collect();
+
+    let camera_pos_wc = Vec3::new_xyz(0.0, 0.0, 1.0);
+    let camera_up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+    let camera_focus_center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+    let camera_lookat_mat = transformations::look_at(&camera_pos_wc, &camera_focus_center_wc, &camera_up_wc);
+    let positions_ec: Vec<Vec4> = positions_wc.par_iter().map(|p_wc| {
+        let mut p_ec = camera_lookat_mat.mat_vec_dot(p_wc);
+        p_ec.scalar_mul_(1.0 / p_ec.w());
+        return p_ec;
+    }).collect();
+
     println!("OK");
 }
