@@ -7,6 +7,7 @@ use std::sync::{Arc, Mutex, mpsc};
 mod err;
 mod data;
 mod state;
+mod transformations;
 
 const OBJ_PATH: &'static str = "data/triangle.obj";
 
