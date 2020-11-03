@@ -151,5 +151,6 @@ fn main() {
         }
     }).collect();
 
+    // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
     println!("OK");
 }
