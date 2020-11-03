@@ -1,12 +1,16 @@
 use crate::data::{Add, Mat4, Normalize, ScalarMul, Vec3, Vec4, _Mat, Minus, Cross, Mat3};
 
-pub fn translate_obj(mat: Mat4, translation: &Vec3) -> Mat4 {
-    let mut result = mat.clone();
-    // let translation = translation.scalar_mul(-1.);
-    let m0 = mat._get_column(0);
-    let m1 = mat._get_column(1);
-    let m2 = mat._get_column(2);
-    let m3 = mat._get_column(3);
+///
+/// Combines Translate Matrix and mat
+///
+/// return = left_mat dot Translate Matrix
+///
+pub fn translate_obj(left_mat: &Mat4, translation: &Vec3) -> Mat4 {
+    let mut result = left_mat.clone();
+    let m0 = left_mat._get_column(0);
+    let m1 = left_mat._get_column(1);
+    let m2 = left_mat._get_column(2);
+    let m3 = left_mat._get_column(3);
     let mut m0t0 = m0.scalar_mul(translation.x());
     let m1t1 = m1.scalar_mul(translation.y());
     let m2t2 = m2.scalar_mul(translation.z());
@@ -66,7 +70,7 @@ pub fn inverse_look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4
     m._set_column(1, &Vec4::from(&camera_up, 0.0));
     m._set_column(2, &Vec4::from(&f, 0.0));
 
-    let translate_mat = translate_obj(Mat4::identity(), &eye);
+    let translate_mat = translate_obj(&Mat4::identity(), &eye);
 
     return translate_mat.dot_mat(&m);
 }
@@ -85,7 +89,7 @@ pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
     m._set_row(1, &Vec4::from(&camera_up, 0.0));
     m._set_row(2, &Vec4::from(&f, 0.0));
 
-    m = translate_obj(m, &eye.scalar_mul(-1.0));
+    m = translate_obj(&m, &eye.scalar_mul(-1.0));
     return m;
 }
 
