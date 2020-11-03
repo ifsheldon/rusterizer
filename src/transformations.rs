@@ -51,9 +51,8 @@ pub fn scale(transformation: &Mat4, scale_factor: f32) -> Mat4 {
     return scale_mat.dot_mat(transformation);
 }
 
-// TODO: check this
-pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
-    // let mut look_at_direction = center._minus(eye); // left-hand coord
+pub fn inverse_look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4
+{
     let mut look_at_direction = eye._minus(center); // right-hand coord. looking at negative z
     look_at_direction.normalize_();
     let mut right = look_at_direction.cross(up);
@@ -63,9 +62,25 @@ pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
     let f = look_at_direction;
     let mut m = Mat4::identity();
 
-    // m._set_column(0, &right);
-    // m._set_column(1, &camera_up);
-    // m._set_column(2, &f);
+    m._set_column(0, &Vec4::from(&right, 0.0));
+    m._set_column(1, &Vec4::from(&camera_up, 0.0));
+    m._set_column(2, &Vec4::from(&f, 0.0));
+
+    let translate_mat = translate_obj(Mat4::identity(), &eye);
+
+    return translate_mat.dot_mat(&m);
+}
+
+pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
+    let mut look_at_direction = eye._minus(center); // right-hand coord. looking at negative z
+    look_at_direction.normalize_();
+    let mut right = look_at_direction.cross(up);
+    right.normalize_();
+    let mut camera_up = right.cross(&look_at_direction);
+    camera_up.normalize_();
+    let f = look_at_direction;
+    let mut m = Mat4::identity();
+
     m._set_row(0, &Vec4::from(&right, 0.0));
     m._set_row(1, &Vec4::from(&camera_up, 0.0));
     m._set_row(2, &Vec4::from(&f, 0.0));
@@ -138,5 +153,22 @@ mod test {
         assert_eq!(p_ec.z(), -5.0);
         assert_eq!(p_wc.w(), 1.0);
         println!("{:?}", p_ec);
+    }
+
+    #[test]
+    fn test_inverse_look_at()
+    {
+        let eye_wc = Vec3::new_xyz(4.0, 0.0, 3.0);
+        let center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+        let up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let look_at_mat = look_at(&eye_wc, &center_wc, &up_wc);
+        let p_wc = Vec4::new_xyzw(30.0, 100.0, 100.0, 1.0);
+        let p_ec = look_at_mat.mat_vec_dot(&p_wc);
+        let inverse_look_at_mat = inverse_look_at(&eye_wc, &center_wc, &up_wc);
+        let p_ec_to_wc = inverse_look_at_mat.mat_vec_dot(&p_ec);
+        // may fail due to precision problems
+        assert_eq!(p_wc.x(), p_ec_to_wc.x());
+        assert_eq!(p_wc.y(), p_ec_to_wc.y());
+        assert_eq!(p_wc.z(), p_ec_to_wc.z());
     }
 }
