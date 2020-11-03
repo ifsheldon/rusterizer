@@ -58,13 +58,13 @@ pub fn scale(transformation: &Mat4, scale_factor: f32) -> Mat4 {
 
 pub fn inverse_look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4
 {
-    let mut look_at_direction = eye._minus(center); // right-hand coord. looking at negative z
+    let mut look_at_direction = center._minus(&eye);
     look_at_direction.normalize_();
     let mut right = look_at_direction.cross(up);
     right.normalize_();
     let mut camera_up = right.cross(&look_at_direction);
     camera_up.normalize_();
-    let f = look_at_direction;
+    let f = look_at_direction.scalar_mul(-1.0);// right-hand coord. looking at negative z
     let mut m = Mat4::identity();
 
     m._set_column(0, &Vec4::from(&right, 0.0));
@@ -77,13 +77,13 @@ pub fn inverse_look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4
 }
 
 pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
-    let mut look_at_direction = eye._minus(center); // right-hand coord. looking at negative z
+    let mut look_at_direction = center._minus(&eye);
     look_at_direction.normalize_();
     let mut right = look_at_direction.cross(up);
     right.normalize_();
     let mut camera_up = right.cross(&look_at_direction);
     camera_up.normalize_();
-    let f = look_at_direction;
+    let f = look_at_direction.scalar_mul(-1.0);// right-hand coord. looking at negative z
     let mut m = Mat4::identity();
 
     m._set_row(0, &Vec4::from(&right, 0.0));
