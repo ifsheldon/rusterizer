@@ -94,6 +94,18 @@ pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
     return m;
 }
 
+pub fn perspective(fovy_rad: f32, aspect: f32, near: f32, far: f32) -> Mat4
+{
+    let tan_half_fovy = (fovy_rad / 2.0).tan();
+    let mut mat = Mat4::_new1(false, [[0.0; 4]; 4]);
+    mat._set_entry(0, 0, 1.0 / (aspect * tan_half_fovy));
+    mat._set_entry(1, 1, 1.0 / tan_half_fovy);
+    mat._set_entry(2, 2, -(near + far) / (far - near));
+    //TODO: check the sign of below two lines
+    mat._set_entry(3, 2, -1.0);
+    mat._set_entry(2, 3, -(2.0 * far * near) / (far - near));
+    return mat;
+}
 
 #[cfg(test)]
 mod test {
@@ -193,5 +205,20 @@ mod test {
         let p_y = y_90.mat_vec_dot(&p);
         let p_z = z_90.mat_vec_dot(&p);
         println!("{:?}\n{:?}\n{:?}", p_x, p_y, p_z);
+    }
+
+    #[test]
+    fn test_perspective()
+    {
+        let model_mat = Mat4::identity();
+        let view_mat = look_at(&Vec3::new_xyz(1.0, 0.0, 0.0), &Vec3::new_xyz(0.0, 0.0, 0.0), &Vec3::new_xyz(0.0, 1.0, 0.0));
+        let project_mat = perspective(45.0_f32.to_radians(), 1.0, 0.1, 100.0);
+        println!("{:?}",view_mat.data);
+        let model_view_mat = view_mat.dot_mat(&model_mat);
+        let model_view_proj_mat = project_mat.dot_mat(&model_view_mat);
+        let point = Vec4::new_xyzw(1.2, 3.4, 1.09, 1.0); // need to check with glm
+        let mut p = model_view_mat.mat_vec_dot(&point);
+        p.scalar_mul_(1.0 / p.w());
+        println!("{:?}", p);
     }
 }
