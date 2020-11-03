@@ -22,11 +22,12 @@ pub fn translate_obj(left_mat: &Mat4, translation: &Vec3) -> Mat4 {
 }
 
 // Reference: https://en.wikipedia.org/wiki/Rotation_matrix
-pub fn rotate_obj(transformation: Mat4, angle_radian: f32, mut axis: Vec3) -> Mat4 {
+pub fn rotate_obj(transformation: &Mat4, angle_radian: f32, axis: &Vec3) -> Mat4 {
     // let angle = -angle;
     let cos = angle_radian.cos();
     let one_cos = 1. - cos;
     let sin = angle_radian.sin();
+    let mut axis = axis.clone();
     axis.normalize_();
     let x = axis.x();
     let y = axis.y();
