@@ -11,6 +11,8 @@ mod state;
 mod transformations;
 
 const OBJ_PATH: &'static str = "data/triangle.obj";
+const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
+const OBJ_BOUNDING_RADIUS: f32 = 125.0;
 
 pub fn get_position_os(mesh: &Mesh) -> Vec<Vec3>
 {
