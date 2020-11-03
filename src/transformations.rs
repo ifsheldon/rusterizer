@@ -176,4 +176,22 @@ mod test {
         assert_eq!(p_wc.y(), p_ec_to_wc.y());
         assert_eq!(p_wc.z(), p_ec_to_wc.z());
     }
+
+    #[test]
+    fn test_rotate()
+    {
+        let x_axis = Vec3::new_xyz(1.0, 0.0, 0.0);
+        let y_axis = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let z_axis = Vec3::new_xyz(0.0, 0.0, 1.0);
+        let p = Vec4::new_xyzw(1.0, 1.0, 1.0, 1.0);
+        let rad_90 = (90.0_f32).to_radians();
+        let identity = Mat4::identity();
+        let x_90 = rotate_obj(&identity, rad_90, &x_axis);
+        let y_90 = rotate_obj(&identity, rad_90, &y_axis);
+        let z_90 = rotate_obj(&identity, rad_90, &z_axis);
+        let p_x = x_90.mat_vec_dot(&p);
+        let p_y = y_90.mat_vec_dot(&p);
+        let p_z = z_90.mat_vec_dot(&p);
+        println!("{:?}\n{:?}\n{:?}", p_x, p_y, p_z);
+    }
 }
