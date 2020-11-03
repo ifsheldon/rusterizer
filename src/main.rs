@@ -3,6 +3,7 @@ use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul};
 use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
+use tobj::Mesh;
 
 mod err;
 mod data;
@@ -11,18 +12,10 @@ mod transformations;
 
 const OBJ_PATH: &'static str = "data/triangle.obj";
 
-fn main() {
-    let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
-    println!("model num = {}", model.len());
-    let mesh = &mut model.get_mut(0).unwrap().mesh;
-    println!("normal num = {}", mesh.normals.len());
-    println!("triangle num = {}", mesh.num_face_indices.len());
-    println!("indices len = {}", mesh.indices.len());
-    println!("vertex num = {}", mesh.positions.len() / 3);
-    let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
-    // get positions
+pub fn get_position_os(mesh: &Mesh) -> Vec<Vec3>
+{
     let idxs: Vec<usize> = (0..mesh.positions.len()).step_by(3).collect();
-    let mut positions_os: Vec<Vec3> = idxs.par_iter().map(|i| {
+    let positions_os: Vec<Vec3> = idxs.par_iter().map(|i| {
         let i = *i;
         unsafe
             {
@@ -32,8 +25,12 @@ fn main() {
                 return Vec3::new_xyz(x, y, z);
             }
     }).collect();
+    return positions_os;
+}
 
-    // get adj vertices
+pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<u32, Vec<(u32, u32)>>
+{
+    let mut map = HashMap::<u32, Vec<(u32, u32)>>::new();
     for i in (0..mesh.indices.len()).step_by(3)
     {
         unsafe {
@@ -74,8 +71,22 @@ fn main() {
             }
         }
     }
+    return map;
+}
 
-    let mut normals_os: Vec<(u32, Vec3)> = map.par_iter().map(|(vertex, adj_point_vertices)| {
+fn main() {
+    let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
+    println!("model num = {}", model.len());
+    let mesh = &mut model.get_mut(0).unwrap().mesh;
+    println!("normal num = {}", mesh.normals.len());
+    println!("triangle num = {}", mesh.num_face_indices.len());
+    println!("indices len = {}", mesh.indices.len());
+    println!("vertex num = {}", mesh.positions.len() / 3);
+
+    let mut positions_os = get_position_os(mesh);
+    let mut adj_vertices_map = get_adj_vertices(mesh);
+
+    let mut normals_os: Vec<(u32, Vec3)> = adj_vertices_map.par_iter().map(|(vertex, adj_point_vertices)| {
         unsafe {
             let v_p = positions_os.get_unchecked((*vertex) as usize);
             let mut vn = Vec3::new(0.0);
