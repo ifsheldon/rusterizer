@@ -70,5 +70,73 @@ pub fn look_at(eye: &Vec3, center: &Vec3, up: &Vec3) -> Mat4 {
     m._set_row(1, &Vec4::from(&camera_up, 0.0));
     m._set_row(2, &Vec4::from(&f, 0.0));
 
+    m = translate_obj(m, &eye.scalar_mul(-1.0));
     return m;
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::data::MatVecDot;
+
+    #[test]
+    fn test_look_at1() {
+        let eye_wc = Vec3::new_xyz(0.0, 0.0, 1.);
+        let center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+        let up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let look_at_mat = look_at(&eye_wc, &center_wc, &up_wc);
+        let p_wc = Vec4::new_xyzw(0.0, 0.0, 0.0, 1.0);
+        let p_ec = look_at_mat.mat_vec_dot(&p_wc);
+        assert_eq!(p_ec.x(), 0.0);
+        assert_eq!(p_ec.y(), 0.0);
+        assert_eq!(p_ec.z(), -1.0);
+        assert_eq!(p_wc.w(), 1.0);
+        println!("{:?}", p_ec);
+    }
+
+    #[test]
+    fn test_look_at2() {
+        let eye_wc = Vec3::new_xyz(0.0, 3.0, 4.0);
+        let center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+        let up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let look_at_mat = look_at(&eye_wc, &center_wc, &up_wc);
+        let p_wc = Vec4::new_xyzw(0.0, 0.0, 0.0, 1.0);
+        let p_ec = look_at_mat.mat_vec_dot(&p_wc);
+        assert_eq!(p_ec.x(), 0.0);
+        assert_eq!(p_ec.y(), 0.0);
+        assert_eq!(p_ec.z(), -5.0);
+        assert_eq!(p_wc.w(), 1.0);
+        println!("{:?}", p_ec);
+    }
+
+    #[test]
+    fn test_look_at3() {
+        let eye_wc = Vec3::new_xyz(4.0, 3.0, 0.0);
+        let center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+        let up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let look_at_mat = look_at(&eye_wc, &center_wc, &up_wc);
+        let p_wc = Vec4::new_xyzw(0.0, 0.0, 0.0, 1.0);
+        let p_ec = look_at_mat.mat_vec_dot(&p_wc);
+        assert_eq!(p_ec.x(), 0.0);
+        assert_eq!(p_ec.y(), 0.0);
+        assert_eq!(p_ec.z(), -5.0);
+        assert_eq!(p_wc.w(), 1.0);
+        println!("{:?}", p_ec);
+    }
+
+    #[test]
+    fn test_look_at4() {
+        let eye_wc = Vec3::new_xyz(4.0, 0.0, 3.0);
+        let center_wc = Vec3::new_xyz(0.0, 0.0, 0.0);
+        let up_wc = Vec3::new_xyz(0.0, 1.0, 0.0);
+        let look_at_mat = look_at(&eye_wc, &center_wc, &up_wc);
+        let p_wc = Vec4::new_xyzw(0.0, 0.0, 0.0, 1.0);
+        let p_ec = look_at_mat.mat_vec_dot(&p_wc);
+        assert_eq!(p_ec.x(), 0.0);
+        assert_eq!(p_ec.y(), 0.0);
+        assert_eq!(p_ec.z(), -5.0);
+        assert_eq!(p_wc.w(), 1.0);
+        println!("{:?}", p_ec);
+    }
 }

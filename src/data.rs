@@ -816,7 +816,7 @@ impl Vec3 {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Vec4 {
     transposed: bool,
     data: [f32; 4],
