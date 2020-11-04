@@ -169,7 +169,6 @@ fn main() {
                              Vec3::new_xyz(0.0, 0.0, 0.0),
                              Vec3::new_xyz(0.0, 1.0, 0.0));
 
-    let triangles_wc = get_triangles(&vertices_wc, &normals_wc, &adj_vertices_map);
     let normal_mat = camera.inverse_transformation.transpose();
     let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
         let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
@@ -179,6 +178,15 @@ fn main() {
             idx: v_wc.idx
         }
     }).collect();
+    let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
+        let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
+        n_ec.normalize_();
+        return Normal {
+            vertex_idx: n_wc.vertex_idx,
+            vec: n_ec
+        }
+    }).collect();
+    let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &adj_vertices_map);
 
     // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
     println!("OK");
