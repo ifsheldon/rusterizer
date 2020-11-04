@@ -26,6 +26,7 @@ impl Camera
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Vertex
 {
     pub position: Vec4,
@@ -52,6 +53,7 @@ impl Vertex
     }
 }
 
+#[derive(Debug, Copy, Clone)]
 pub struct Normal
 {
     pub vec: Vec4,
