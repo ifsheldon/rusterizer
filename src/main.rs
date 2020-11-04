@@ -5,6 +5,9 @@ use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
 use tobj::Mesh;
 use crate::shading::{Vertex, Normal, Camera, Triangle, raster};
+use crate::state::KeyboardMouseStates;
+use pixel_canvas::{Canvas, Color, XY};
+use std::ops::{Index, IndexMut};
 
 mod err;
 mod data;
@@ -83,29 +86,20 @@ pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<usize, Vec<(usize, usize)>>
     return map;
 }
 
-//FIXME: duplicate triangles
-pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, adj_vertices_map: &HashMap<usize, Vec<(usize, usize)>>) -> Vec<Triangle<'a>>
+pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, mesh: &Mesh) -> Vec<Triangle<'a>>
 {
     let mut triangles = Vec::new();
-    for (i, adj_vertices) in adj_vertices_map.iter()
+    for i in (0..mesh.indices.len()).step_by(3)
     {
-        let vertex_idx1 = *i;
-        unsafe
-            {
-                let v1 = vertices.get_unchecked(vertex_idx1);
-                let n1 = normals.get_unchecked(vertex_idx1);
-                for (adj_v2_idx, adj_v3_idx) in adj_vertices.iter()
-                {
-                    let vertex_idx2 = *adj_v2_idx;
-                    let vertex_idx3 = *adj_v3_idx;
-                    let v2 = vertices.get_unchecked(vertex_idx2);
-                    let n2 = normals.get_unchecked(vertex_idx2);
-                    let v3 = vertices.get_unchecked(vertex_idx3);
-                    let n3 = normals.get_unchecked(vertex_idx3);
-                    let triangle = Triangle::new((v1, n1), (v2, n2), (v3, n3));
-                    triangles.push(triangle);
-                }
-            }
+        unsafe {
+            let idx1 = (*mesh.indices.get_unchecked(i)) as usize;
+            let idx2 = (*mesh.indices.get_unchecked(i + 1)) as usize;
+            let idx3 = (*mesh.indices.get_unchecked(i + 2)) as usize;
+            let triangle = Triangle::new((vertices.get_unchecked(idx1), normals.get_unchecked(idx1)),
+                                         (vertices.get_unchecked(idx2), normals.get_unchecked(idx2)),
+                                         (vertices.get_unchecked(idx3), normals.get_unchecked(idx3)));
+            triangles.push(triangle);
+        }
     }
     return triangles;
 }
@@ -206,11 +200,20 @@ fn main()
     let mut adj_vertices_map = get_adj_vertices(mesh);
     println!("{:?}", adj_vertices_map);
     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
-    let triangles = get_triangles(&vertices, &normals, &adj_vertices_map);
+    let triangles = get_triangles(&vertices, &normals, mesh);
     println!("{}", triangles.len());
-    for t in triangles.iter()
-    {
-        let fragments = raster(t);
-        println!("{}", fragments.len());
-    }
+    let mut fragments = raster(triangles.get(0).unwrap());
+
+    let canvas = Canvas::new(300, 300)
+        .title("Rusterizer")
+        .state(KeyboardMouseStates::new())
+        .input(KeyboardMouseStates::handle_input);
+
+    canvas.render(move |_state, frame_buffer_image| {
+        for f in fragments.iter()
+        {
+            let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
+            *c = Color::rgb(f.color.r() as u8, f.color.g() as u8, f.color.b() as u8);
+        }
+    });
 }

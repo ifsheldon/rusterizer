@@ -93,15 +93,15 @@ pub struct Fragment
     pub color: Vec3
 }
 
-pub fn raster(triangle: &Triangle) -> Vec<Fragment>
+pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
 {
     let color = Vec3::new_rgb(255.0, 0.0, 0.0);
     let mut fragments = Vec::<Fragment>::new();
-    if triangle.v1.y() == triangle.v2.y() && triangle.v1.y() == triangle.v3.y()
+    if triangle_sc.v1.y() == triangle_sc.v2.y() && triangle_sc.v1.y() == triangle_sc.v3.y()
     {
         return fragments;
     } else {
-        let mut v = vec![triangle.v1, triangle.v2, triangle.v3];
+        let mut v = vec![triangle_sc.v1, triangle_sc.v2, triangle_sc.v3];
         v.sort_by(|a, b| (*a).position.y().partial_cmp(&(*b).position.y()).unwrap());
         let y_min = (v.get(0).unwrap().y()) as i32;
         let y_mid = (v.get(1).unwrap().y()) as i32;
@@ -122,11 +122,10 @@ pub fn raster(triangle: &Triangle) -> Vec<Fragment>
             };
             let alpha = (i as f32) / y_height_f;
             let beta = ((i as f32) - if half { (y_mid - y_min) as f32 } else { 0.0_f32 }) / (seg_height as f32);
-            let ay = y_min + ((y_max - y_min) as f32 * alpha) as i32;
             let ax = x_min + ((x_max - x_min) as f32 * alpha) as i32;
-            let (by, bx) = match half {
-                true => (y_mid + ((y_max - y_mid) as f32 * beta) as i32, x_mid + ((x_max - x_mid) as f32 * beta) as i32),
-                false => (y_min + ((y_mid - y_min) as f32 * beta) as i32, x_min + ((x_mid - x_min) as f32 * beta) as i32)
+            let bx = match half {
+                true => x_mid + ((x_max - x_mid) as f32 * beta) as i32,
+                false => x_min + ((x_mid - x_min) as f32 * beta) as i32
             };
             let (x_start, x_stop) = if ax > bx { (bx, ax) } else { (ax, bx) };
             for j in x_start..(x_stop + 1)
@@ -134,7 +133,7 @@ pub fn raster(triangle: &Triangle) -> Vec<Fragment>
                 fragments.push(Fragment {
                     x: j as u32,
                     y: (y_min + i) as u32,
-                    z: 0.0,
+                    z: 0.0, //TODO: interpolate z
                     color
                 })
             }
