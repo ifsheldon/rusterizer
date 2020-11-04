@@ -1,10 +1,10 @@
 use std::collections::{HashMap, HashSet};
-use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul, Mat4, Vec4, MatVecDot};
+use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul, Mat4, Vec4, MatVecDot, Transpose};
 use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
 use tobj::Mesh;
-use crate::shading::{Vertex, Normal, Camera};
+use crate::shading::{Vertex, Normal, Camera, Triangle};
 
 mod err;
 mod data;
@@ -83,6 +83,32 @@ pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<usize, Vec<(usize, usize)>>
     return map;
 }
 
+pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, adj_vertices_map: &HashMap<usize, Vec<(usize, usize)>>) -> Vec<Triangle<'a>>
+{
+    let mut triangles = Vec::new();
+    for (i, adj_vertices) in adj_vertices_map.iter()
+    {
+        let vertex_idx1 = *i;
+        unsafe
+            {
+                let v1 = vertices.get_unchecked(vertex_idx1);
+                let n1 = normals.get_unchecked(vertex_idx1);
+                for (adj_v2_idx, adj_v3_idx) in adj_vertices.iter()
+                {
+                    let vertex_idx2 = *adj_v2_idx;
+                    let vertex_idx3 = *adj_v3_idx;
+                    let v2 = vertices.get_unchecked(vertex_idx2);
+                    let n2 = normals.get_unchecked(vertex_idx2);
+                    let v3 = vertices.get_unchecked(vertex_idx3);
+                    let n3 = normals.get_unchecked(vertex_idx3);
+                    let triangle = Triangle::new((v1, n1), (v2, n2), (v3, n3));
+                    triangles.push(triangle);
+                }
+            }
+    }
+    return triangles;
+}
+
 pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec<(usize, usize)>>) -> Vec<Normal>
 {
     let mut normals: Vec<Normal> = adj_vertices_map.par_iter().map(|(vertex, adj_point_vertices)| {
@@ -129,8 +155,6 @@ fn main() {
 
     let mut vertices_os = get_position_os(mesh);
     let mut adj_vertices_map = get_adj_vertices(mesh);
-    let mut normals_os: Vec<Normal> = get_normals(&vertices_os, &adj_vertices_map);
-
     let identity = Mat4::identity();
     let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
@@ -139,9 +163,14 @@ fn main() {
         idx: v_os.idx
     }).collect();
 
+    let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
+
     let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 1.0),
                              Vec3::new_xyz(0.0, 0.0, 0.0),
                              Vec3::new_xyz(0.0, 1.0, 0.0));
+
+    let triangles_wc = get_triangles(&vertices_wc, &normals_wc, &adj_vertices_map);
+    let normal_mat = camera.inverse_transformation.transpose();
     let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
         let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
         p_ec.scalar_mul_(1.0 / p_ec.w());

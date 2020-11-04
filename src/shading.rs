@@ -36,3 +36,29 @@ pub struct Normal
     pub vec: Vec4,
     pub vertex_idx: usize
 }
+
+pub struct Triangle<'a>
+{
+    v1: &'a Vertex,
+    v2: &'a Vertex,
+    v3: &'a Vertex,
+    n1: &'a Normal,
+    n2: &'a Normal,
+    n3: &'a Normal
+}
+
+impl<'a> Triangle <'a>
+{
+    pub fn new(vn1: (&'a Vertex, &'a Normal), vn2: (&'a Vertex, &'a Normal), vn3: (&'a Vertex, &'a Normal)) -> Self
+    {
+        Triangle
+        {
+            v1: vn1.0,
+            n1: vn1.1,
+            v2: vn2.0,
+            n2: vn2.1,
+            v3: vn3.0,
+            n3: vn3.1
+        }
+    }
+}
