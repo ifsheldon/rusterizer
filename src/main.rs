@@ -4,7 +4,7 @@ use std::collections::hash_map::RandomState;
 use rayon::prelude::*;
 use std::sync::{Arc, Mutex, mpsc};
 use tobj::Mesh;
-use crate::shading::{Vertex, Normal, Camera, Triangle};
+use crate::shading::{Vertex, Normal, Camera, Triangle, raster};
 
 mod err;
 mod data;
@@ -12,7 +12,7 @@ mod state;
 mod transformations;
 mod shading;
 
-const OBJ_PATH: &'static str = "data/triangle.obj";
+const OBJ_PATH: &'static str = "data/triangle_test.obj";
 const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
 const OBJ_BOUNDING_RADIUS: f32 = 125.0;
 
@@ -83,6 +83,7 @@ pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<usize, Vec<(usize, usize)>>
     return map;
 }
 
+//FIXME: duplicate triangles
 pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, adj_vertices_map: &HashMap<usize, Vec<(usize, usize)>>) -> Vec<Triangle<'a>>
 {
     let mut triangles = Vec::new();
@@ -144,7 +145,56 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
     return normals;
 }
 
-fn main() {
+// fn main() {
+//     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
+//     println!("model num = {}", model.len());
+//     let mesh = &mut model.get_mut(0).unwrap().mesh;
+//     println!("normal num = {}", mesh.normals.len());
+//     println!("triangle num = {}", mesh.num_face_indices.len());
+//     println!("indices len = {}", mesh.indices.len());
+//     println!("vertex num = {}", mesh.positions.len() / 3);
+//
+//     let mut vertices_os = get_position_os(mesh);
+//     let mut adj_vertices_map = get_adj_vertices(mesh);
+//     let identity = Mat4::identity();
+//     let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
+//     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
+//     let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
+//         position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
+//         idx: v_os.idx
+//     }).collect();
+//
+//     let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
+//
+//     let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 1.0),
+//                              Vec3::new_xyz(0.0, 0.0, 0.0),
+//                              Vec3::new_xyz(0.0, 1.0, 0.0));
+//
+//     let normal_mat = camera.inverse_transformation.transpose();
+//     let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
+//         let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
+//         p_ec.scalar_mul_(1.0 / p_ec.w());
+//         return Vertex {
+//             position: p_ec,
+//             idx: v_wc.idx
+//         }
+//     }).collect();
+//     let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
+//         let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
+//         n_ec.normalize_();
+//         return Normal {
+//             vertex_idx: n_wc.vertex_idx,
+//             vec: n_ec
+//         }
+//     }).collect();
+//     let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &adj_vertices_map);
+//
+//     // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
+//     println!("OK");
+// }
+
+fn main()
+{
     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
     println!("model num = {}", model.len());
     let mesh = &mut model.get_mut(0).unwrap().mesh;
@@ -152,42 +202,15 @@ fn main() {
     println!("triangle num = {}", mesh.num_face_indices.len());
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
-
-    let mut vertices_os = get_position_os(mesh);
+    let mut vertices = get_position_os(mesh);
     let mut adj_vertices_map = get_adj_vertices(mesh);
-    let identity = Mat4::identity();
-    let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
-    let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
-    let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
-        position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
-        idx: v_os.idx
-    }).collect();
-
-    let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
-
-    let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 1.0),
-                             Vec3::new_xyz(0.0, 0.0, 0.0),
-                             Vec3::new_xyz(0.0, 1.0, 0.0));
-
-    let normal_mat = camera.inverse_transformation.transpose();
-    let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
-        let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
-        p_ec.scalar_mul_(1.0 / p_ec.w());
-        return Vertex {
-            position: p_ec,
-            idx: v_wc.idx
-        }
-    }).collect();
-    let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
-        let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
-        n_ec.normalize_();
-        return Normal {
-            vertex_idx: n_wc.vertex_idx,
-            vec: n_ec
-        }
-    }).collect();
-    let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &adj_vertices_map);
-
-    // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
-    println!("OK");
+    println!("{:?}", adj_vertices_map);
+    let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
+    let triangles = get_triangles(&vertices, &normals, &adj_vertices_map);
+    println!("{}", triangles.len());
+    for t in triangles.iter()
+    {
+        let fragments = raster(t);
+        println!("{}", fragments.len());
+    }
 }

@@ -1,5 +1,6 @@
 use crate::data::{Vec3, Mat4, Vec4};
 use crate::transformations::{look_at, inverse_look_at};
+use std::cmp::{max, min};
 
 pub struct Camera
 {
@@ -31,6 +32,26 @@ pub struct Vertex
     pub idx: usize
 }
 
+impl Vertex
+{
+    pub fn x(&self) -> f32
+    {
+        self.position.x()
+    }
+    pub fn y(&self) -> f32
+    {
+        self.position.y()
+    }
+    pub fn z(&self) -> f32
+    {
+        self.position.z()
+    }
+    pub fn w(&self) -> f32
+    {
+        self.position.w()
+    }
+}
+
 pub struct Normal
 {
     pub vec: Vec4,
@@ -47,7 +68,7 @@ pub struct Triangle<'a>
     n3: &'a Normal
 }
 
-impl<'a> Triangle <'a>
+impl<'a> Triangle<'a>
 {
     pub fn new(vn1: (&'a Vertex, &'a Normal), vn2: (&'a Vertex, &'a Normal), vn3: (&'a Vertex, &'a Normal)) -> Self
     {
@@ -60,5 +81,64 @@ impl<'a> Triangle <'a>
             v3: vn3.0,
             n3: vn3.1
         }
+    }
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct Fragment
+{
+    pub x: u32,
+    pub y: u32,
+    pub z: f32,
+    pub color: Vec3
+}
+
+pub fn raster(triangle: &Triangle) -> Vec<Fragment>
+{
+    let color = Vec3::new_rgb(255.0, 0.0, 0.0);
+    let mut fragments = Vec::<Fragment>::new();
+    if triangle.v1.y() == triangle.v2.y() && triangle.v1.y() == triangle.v3.y()
+    {
+        return fragments;
+    } else {
+        let mut v = vec![triangle.v1, triangle.v2, triangle.v3];
+        v.sort_by(|a, b| (*a).position.y().partial_cmp(&(*b).position.y()).unwrap());
+        let y_min = (v.get(0).unwrap().y()) as i32;
+        let y_mid = (v.get(1).unwrap().y()) as i32;
+        let y_max = (v.get(2).unwrap().y()) as i32;
+
+        let x_min = (v.get(0).unwrap().x()) as i32;
+        let x_mid = (v.get(1).unwrap().x()) as i32;
+        let x_max = (v.get(2).unwrap().x()) as i32;
+
+        let y_height = y_max - y_min;
+        let y_height_f = y_height as f32;
+        for i in 0..y_height
+        {
+            let half = i > y_mid - y_min || y_mid == y_min;
+            let seg_height = match half {
+                true => y_max - y_mid,
+                false => y_mid - y_min
+            };
+            let alpha = (i as f32) / y_height_f;
+            let beta = ((i as f32) - if half { (y_mid - y_min) as f32 } else { 0.0_f32 }) / (seg_height as f32);
+            let ay = y_min + ((y_max - y_min) as f32 * alpha) as i32;
+            let ax = x_min + ((x_max - x_min) as f32 * alpha) as i32;
+            let (by, bx) = match half {
+                true => (y_mid + ((y_max - y_mid) as f32 * beta) as i32, x_mid + ((x_max - x_mid) as f32 * beta) as i32),
+                false => (y_min + ((y_mid - y_min) as f32 * beta) as i32, x_min + ((x_mid - x_min) as f32 * beta) as i32)
+            };
+            let (x_start, x_stop) = if ax > bx { (bx, ax) } else { (ax, bx) };
+            for j in x_start..(x_stop + 1)
+            {
+                fragments.push(Fragment {
+                    x: j as u32,
+                    y: (y_min + i) as u32,
+                    z: 0.0,
+                    color
+                })
+            }
+        }
+        return fragments;
     }
 }
