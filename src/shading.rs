@@ -1,6 +1,6 @@
 use std::cmp::{max, min};
 
-use crate::data::{Add, Mat4, MatVecDot, Minus, ScalarMul, Vec3, Vec4, VecDot};
+use crate::data::{Add, Mat4, MatVecDot, Minus, Product, ScalarMul, Vec3, Vec4, VecDot};
 use crate::transformations::{inverse_look_at, look_at};
 
 pub struct Camera
@@ -96,6 +96,51 @@ pub struct Fragment
     pub normal: Vec4,
 }
 
+
+#[derive(Copy, Clone)]
+pub struct Material {
+    pub ambient: Vec3,
+    pub diffuse: Vec3,
+    pub reflection: Vec3,
+    pub global_reflection: Vec3,
+    pub specular: f32,
+}
+
+
+#[derive(Copy, Clone)]
+pub struct Light {
+    pub position: Vec3,
+    pub original_position: Vec3,
+    pub ambient: Vec3,
+    pub diffuse: Vec3,
+}
+
+pub fn reflect(incident_vec: &Vec3, normalized_normal: &Vec3) -> Vec3 {
+    incident_vec._minus(&normalized_normal.scalar_mul(2.0 * normalized_normal.dot(incident_vec)))
+}
+
+pub fn phong_lighting(
+    light_direction: &Vec3,
+    normalized_normal: &Vec3,
+    view_direction: &Vec3,
+    material: &Material,
+    light: &Light,
+) -> Vec3 {
+    let reflected_light = reflect(&light_direction.scalar_mul(-1.), normalized_normal);
+    let n_dot_l = f32::max(0.0, normalized_normal.dot(light_direction));
+    let r_dot_l = f32::max(0.0, reflected_light.dot(view_direction));
+    let r_dot_v_pow_n = if r_dot_l == 0.0 {
+        0.0
+    } else {
+        r_dot_l.powf(material.specular)
+    };
+    let ambient = light.ambient.product(&material.ambient);
+    let mut result = material.diffuse.scalar_mul(n_dot_l);
+    result.add_(&material.reflection.scalar_mul(r_dot_v_pow_n));
+    result.product_(&light.diffuse);
+    result.add_(&ambient);
+    return result;
+}
 
 fn get_min_max(a: f32, b: f32, c: f32, upper_bound: f32, lower_bound: f32) -> (u32, u32)
 {
