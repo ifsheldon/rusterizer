@@ -144,3 +144,22 @@ pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
         return fragments;
     }
 }
+
+pub fn triangle_area(a: &Vec3, b: &Vec3, c: &Vec3) -> f32
+{
+    let area = (c.x() - a.x()) * (b.y() - a.y()) - (c.y() - a.y()) * (b.x() - a.x());
+    return f32::abs(area / 2.0);
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_area() {
+        let v1 = Vec3::new_xyz(1., 0., 0.);
+        let v2 = Vec3::new_xyz(0., 1., 0.);
+        let v3 = Vec3::new(0.0);
+        println!("{}", triangle_area(&v1, &v2, &v3));
+    }
+}
