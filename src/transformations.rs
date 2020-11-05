@@ -221,4 +221,13 @@ mod test {
         p.scalar_mul_(1.0 / p.w());
         println!("{:?}", p);
     }
+
+    #[test]
+    fn test_perspective1()
+    {
+        let p = Vec4::new_xyzw(1.0,1.0,-1.0,1.0);
+        let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0,100.0);
+        let pp = proj_mat.mat_vec_dot(&p);
+        println!("{:?}", pp);
+    }
 }
