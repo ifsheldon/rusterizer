@@ -235,6 +235,17 @@ fn main()
     let mut adj_vertices_map = get_adj_vertices(mesh);
     println!("{:?}", adj_vertices_map);
     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
+
+    let normals = vec![Normal {
+        vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
+        vertex_idx: 0,
+    }, Normal {
+        vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
+        vertex_idx: 1,
+    }, Normal {
+        vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
+        vertex_idx: 2,
+    }];
     let triangles_ec = get_triangles(&vertices, &normals, mesh);
     println!("{}", triangles_ec.len());
     let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
@@ -250,7 +261,9 @@ fn main()
         for f in fragments.iter()
         {
             let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-            *c = Color::rgb(f.color.r() as u8, f.color.g() as u8, f.color.b() as u8);
+            let normal = &f.normal;
+            let color = normal.scalar_mul(255.0);
+            *c = Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
         }
     });
 }

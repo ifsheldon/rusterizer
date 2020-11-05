@@ -93,7 +93,7 @@ pub struct Fragment
     pub x: u32,
     pub y: u32,
     pub z: f32,
-    pub color: Vec3,
+    pub normal: Vec4,
 }
 
 
@@ -112,7 +112,7 @@ fn get_min_max(a: f32, b: f32, c: f32, upper_bound: f32, lower_bound: f32) -> (u
     return (min as u32, max as u32);
 }
 
-fn interpolate(w: (f32, f32, f32), v: (&Vec3, &Vec3, &Vec3), z: f32) -> Vec3
+fn interpolate<T>(w: (f32, f32, f32), v: (&T, &T, &T), z: f32) -> T where T: ScalarMul + Add
 {
     let mut interpolated = v.0.scalar_mul(w.0);
     interpolated.add_(&v.1.scalar_mul(w.1));
@@ -129,33 +129,19 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
     for triangle_ec in triangles_ec.iter()
     {
         let vs = vec![&triangle_ec.v1.position, &triangle_ec.v2.position, &triangle_ec.v3.position];
-        let mut vs_dc: Vec<Vec4> = Vec::new();
-        for p in vs.iter()
-        {
+        let vs_dc: Vec<Vec4> = vs.iter().map(|p| {
             let mut v_sc = perspective_mat.mat_vec_dot(*p);
             v_sc.scalar_mul_(1.0 / v_sc.w()); //normalize self
             let v_dc = Vec4::new_xyzw((v_sc.x() + 1.0) * 0.5 * w_f,
                                       (v_sc.y() + 1.0) * 0.5 * h_f,
-                                      -1.0 / v_sc.z(), // for perspective correctness, precompute 1/z
+                                      -1.0 / v_sc.z(), // for perspective correctness, precompute 1/z //
                                       1.0);
-            vs_dc.push(v_dc);
-        }
-        // let vs_dc: Vec<Vec4> = vs.iter().map(|p| {
-        //     let mut v_sc = perspective_mat.mat_vec_dot(*p);
-        //     v_sc.scalar_mul_(1.0 / v_sc.w()); //normalize self
-        //     let v_dc = Vec4::new_xyzw((v_sc.x() + 1.0) * 0.5 * w_f,
-        //                               (v_sc.y() + 1.0) * 0.5 * h_f,
-        //                               1.0 / v_sc.z(), // for perspective correctness, precompute 1/z // TODO: need negate it ?
-        //                               1.0);
-        //     return v_dc;
-        // }).collect();
+            return v_dc;
+        }).collect();
 
         let v0_dc = vs_dc.get(0).unwrap();
         let v1_dc = vs_dc.get(1).unwrap();
         let v2_dc = vs_dc.get(2).unwrap();
-        let c0 = Vec3::new_rgb(255.0, 0.0, 0.0);
-        let c1 = Vec3::new_rgb(0.0, 255.0, 0.0);
-        let c2 = Vec3::new_rgb(0.0, 0.0, 255.0);
         let area = triangle_area(v0_dc, v1_dc, v2_dc);
 
         let (x_min, x_max) = get_min_max(v0_dc.x(), v1_dc.x(), v2_dc.x(), w_f, 0.0);
@@ -167,7 +153,7 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
             {
                 let p = Vec4::new_xyzw((i as f32) + 0.5,
                                        // (height - j) as f32 + 0.5, //seems weird
-                                       j as f32 + 0.5, //seems weird
+                                       j as f32 + 0.5,
                                        0.0, 0.0);
                 let mut w0 = triangle_area(v1_dc, v2_dc, &p);
                 let mut w1 = triangle_area(v2_dc, v0_dc, &p);
@@ -178,12 +164,12 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
                     w1 /= area;
                     w2 /= area;
                     let z = 1.0 / (w0 * v0_dc.z() + w1 * v1_dc.z() + w2 * v2_dc.z());
-                    let mut color = interpolate((w0, w1, w2), (&c0, &c1, &c2), z);
+                    let normal = interpolate((w0, w1, w2), (&triangle_ec.n1.vec, &triangle_ec.n2.vec, &triangle_ec.n3.vec), z);
                     let f = Fragment {
                         x: i,
                         y: j,
                         z,
-                        color,
+                        normal,
                     };
                     fragments.push(f);
                 }
@@ -195,7 +181,6 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
 
 pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
 {
-    let color = Vec3::new_rgb(255.0, 0.0, 0.0);
     let mut fragments = Vec::<Fragment>::new();
     if triangle_sc.v1.y() == triangle_sc.v2.y() && triangle_sc.v1.y() == triangle_sc.v3.y()
     {
@@ -233,8 +218,8 @@ pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
                 fragments.push(Fragment {
                     x: j as u32,
                     y: (y_min + i) as u32,
+                    normal: Vec4::new(0.0),
                     z: 0.0, //TODO: interpolate z
-                    color,
                 })
             }
         }
