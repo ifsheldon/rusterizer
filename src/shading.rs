@@ -1,5 +1,7 @@
 use std::cmp::{max, min};
 
+use rayon::prelude::*;
+
 use crate::data::{Add, Mat4, MatVecDot, Minus, Product, ScalarMul, Vec3, Vec4, VecDot};
 use crate::transformations::{inverse_look_at, look_at};
 
@@ -171,9 +173,8 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
 {
     let w_f = width as f32;
     let h_f = height as f32;
-    let mut fragments = Vec::<Fragment>::new();
-    for triangle_ec in triangles_ec.iter()
-    {
+    let mut fragment_arr: Vec<Vec<Fragment>> = triangles_ec.par_iter().map(|triangle_ec| {
+
         let vs = vec![&triangle_ec.v1.position, &triangle_ec.v2.position, &triangle_ec.v3.position];
         let vs_dc: Vec<Vec4> = vs.iter().map(|p| {
             let mut v_sc = perspective_mat.mat_vec_dot(*p);
@@ -192,7 +193,7 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
 
         let (x_min, x_max) = get_min_max(v0_dc.x(), v1_dc.x(), v2_dc.x(), w_f, 0.0);
         let (y_min, y_max) = get_min_max(v0_dc.y(), v1_dc.y(), v2_dc.y(), h_f, 0.0);
-
+        let mut fragments = Vec::new();
         for i in x_min..x_max
         {
             for j in y_min..y_max
@@ -224,6 +225,13 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
                 }
             }
         }
+        return fragments;
+    }).collect();
+
+    let mut fragments = Vec::new();
+    for frags in fragment_arr.iter_mut()
+    {
+        fragments.append(frags);
     }
     return fragments;
 }
