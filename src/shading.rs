@@ -112,6 +112,15 @@ fn get_min_max(a: f32, b: f32, c: f32, upper_bound: f32, lower_bound: f32) -> (u
     return (min as u32, max as u32);
 }
 
+fn interpolate(w: (f32, f32, f32), v: (&Vec3, &Vec3, &Vec3), z: f32) -> Vec3
+{
+    let mut interpolated = v.0.scalar_mul(w.0);
+    interpolated.add_(&v.1.scalar_mul(w.1));
+    interpolated.add_(&v.2.scalar_mul(w.2));
+    interpolated.scalar_mul_(z);
+    return interpolated;
+}
+
 pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width: u32, height: u32) -> Vec<Fragment>
 {
     let w_f = width as f32;
@@ -169,10 +178,7 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
                     w1 /= area;
                     w2 /= area;
                     let z = 1.0 / (w0 * v0_dc.z() + w1 * v1_dc.z() + w2 * v2_dc.z());
-                    let mut color = c0.scalar_mul(w0);
-                    color.add_(&c1.scalar_mul(w1));
-                    color.add_(&c2.scalar_mul(w2));
-                    color.scalar_mul_(z);
+                    let mut color = interpolate((w0, w1, w2), (&c0, &c1, &c2), z);
                     let f = Fragment {
                         x: i,
                         y: j,
