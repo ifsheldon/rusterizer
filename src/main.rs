@@ -229,11 +229,15 @@ fn main() {
 
     canvas.render(move |_state, frame_buffer_image| {
         let start = now.elapsed().as_millis();
-        for f in survived_fragments.iter()
-        {
+        let colors: Vec<(XY, Color)> = survived_fragments.par_iter().map(|f| {
             let color = shade(f, &light_ec, &silver_material);
-            let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-            *c = color;
+            return (XY(f.x as usize, f.y as usize), color);
+        }).collect();
+
+        for color in colors.iter()
+        {
+            let xy = &color.0;
+            *frame_buffer_image.index_mut(XY(xy.0, xy.1)) = color.1.clone();
         }
         let stop = now.elapsed().as_millis();
         println!("Phong shading used {} ms", stop - start);
