@@ -93,7 +93,8 @@ pub struct Fragment
     pub x: u32,
     pub y: u32,
     pub z: f32,
-    pub normal: Vec4,
+    pub normal_ec: Vec4,
+    pub coord_ec: Vec4,
 }
 
 
@@ -210,11 +211,14 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
                     w2 /= area;
                     let z = 1.0 / (w0 * v0_dc.z() + w1 * v1_dc.z() + w2 * v2_dc.z());
                     let normal = interpolate((w0, w1, w2), (&triangle_ec.n1.vec, &triangle_ec.n2.vec, &triangle_ec.n3.vec), z);
+                    let mut coord_ec = interpolate((w0, w1, w2), (&triangle_ec.v1.position, &triangle_ec.v2.position, &triangle_ec.v3.position), z);
+                    coord_ec.scalar_mul_(1.0 / coord_ec.w());
                     let f = Fragment {
                         x: i,
                         y: j,
                         z,
-                        normal,
+                        coord_ec,
+                        normal_ec: normal,
                     };
                     fragments.push(f);
                 }
@@ -263,7 +267,8 @@ pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
                 fragments.push(Fragment {
                     x: j as u32,
                     y: (y_min + i) as u32,
-                    normal: Vec4::new(0.0),
+                    normal_ec: Vec4::new(0.0),
+                    coord_ec: Vec4::new(0.0),
                     z: 0.0, //TODO: interpolate z
                 })
             }

@@ -11,7 +11,7 @@ use rayon::prelude::*;
 use tobj::Mesh;
 
 use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4};
-use crate::shading::{Camera, Fragment, Normal, raster, rasterization, Triangle, Vertex};
+use crate::shading::*;
 use crate::state::KeyboardMouseStates;
 use crate::transformations::perspective;
 
@@ -210,80 +210,75 @@ fn main() {
             survived_fragments.push(f.clone());
         }
     }
+    let light_pos_wc = Vec4::new_xyzw(200.0, 200.0, 200.0, 1.0);
+    let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
+    light_pos_ec.scalar_mul_(1.0 / light_pos_ec.w());
+    let light_ec = Light {
+        position: Vec3::from(&light_pos_ec),
+        original_position: Vec3::from(&light_pos_ec),
+        ambient: Vec3::new_rgb(0.3, 0.3, 0.3),
+        diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
+    };
+    let silver_material = Material {
+        ambient: Vec3::new_rgb(0.1, 0.1, 0.1),
+        diffuse: Vec3::new_rgb(0.5, 0.5, 0.5),
+        reflection: Vec3::new_rgb(1.0, 1.0, 1.0),
+        global_reflection: Vec3::new_rgb(0.5, 0.5, 0.5),
+        specular: 16.0,
+    };
+
     canvas.render(move |_state, frame_buffer_image| {
+        let start = now.elapsed().as_millis();
         for f in survived_fragments.iter()
         {
-            let color = shade(f);
+            let color = shade(f, &light_ec, &silver_material);
             let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
             *c = color;
         }
+        let stop = now.elapsed().as_millis();
+        println!("Phong shading used {} ms", stop - start);
     });
     println!("OK");
 }
 
-// fn main()
-// {
-//     let (mut model, _) = tobj::load_obj("data/triangle_test_dc_z_buffer.obj", true).expect("Loading Error");
-//     println!("model num = {}", model.len());
-//     let mesh = &mut model.get_mut(0).unwrap().mesh;
-//     println!("normal num = {}", mesh.normals.len());
-//     println!("triangle num = {}", mesh.num_face_indices.len());
-//     println!("indices len = {}", mesh.indices.len());
-//     println!("vertex num = {}", mesh.positions.len() / 3);
-//     let mut vertices = get_position_os(mesh);
-//     let mut adj_vertices_map = get_adj_vertices(mesh);
-//     println!("{:?}", adj_vertices_map);
-//     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
-//
-//     let normals = vec![Normal {
-//         vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
-//         vertex_idx: 0,
-//     }, Normal {
-//         vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
-//         vertex_idx: 1,
-//     }, Normal {
-//         vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
-//         vertex_idx: 2,
-//     }, Normal {
-//         vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
-//         vertex_idx: 3,
-//     }, Normal {
-//         vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
-//         vertex_idx: 4,
-//     }, Normal {
-//         vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
-//         vertex_idx: 5,
-//     }];
-//     let triangles_ec = get_triangles(&vertices, &normals, mesh);
-//     println!("{}", triangles_ec.len());
-//     let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
-//
-//     let mut fragments = rasterization(&triangles_ec, &proj_mat, 300, 300);
-//
-//     let canvas = Canvas::new(300, 300)
-//         .title("Rusterizer")
-//         .state(KeyboardMouseStates::new())
-//         .input(KeyboardMouseStates::handle_input);
-//
-//
-//     canvas.render(move |_state, frame_buffer_image| {
-//         let mut zbuff = [[f32::MAX; 300]; 300];
-//         for f in fragments.iter()
-//         {
-//             if zbuff[f.y as usize][f.x as usize] > f.z {
-//                 let color = shade(f);
-//                 let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-//                 *c = color;
-//                 zbuff[f.y as usize][f.x as usize] = f.z;
-//             }
-//         }
-//     });
-// }
-
-pub fn shade(fragment: &Fragment) -> Color
+pub fn shade(fragment: &Fragment, light: &Light, material: &Material) -> Color
 {
-    // let normal = &fragment.normal;
-    // let color = normal.scalar_mul(255.0);
-    // return Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
-    return Color::rgb(200, 0, 200);
+    let mut normal_ec = Vec3::from(&fragment.normal_ec);
+    normal_ec.normalize_();
+    let pos_ec = fragment.coord_ec.clone();
+    let mut light_dir = light.position._minus(&Vec3::from(&pos_ec));
+    light_dir.normalize_();
+    let mut view_dir = Vec3::from(&pos_ec);
+    view_dir.scalar_mul_(-1.0);
+    view_dir.normalize_();
+    let color_f = phong_lighting(&light_dir, &normal_ec, &view_dir, material, light);
+    return to_color(color_f);
+}
+
+#[inline]
+fn to_color(mut color: Vec3) -> Color {
+    clamp_(&mut color);
+    color.scalar_mul_(255.);
+    let x = color.r().round();
+    let y = color.g().round();
+    let z = color.b().round();
+    Color::rgb(x as u8, y as u8, z as u8)
+}
+
+#[inline]
+fn clamp_(color: &mut Vec3) {
+    color.set_r(clamp_float(color.r()));
+    color.set_g(clamp_float(color.g()));
+    color.set_b(clamp_float(color.b()));
+}
+
+#[inline]
+fn clamp_float(x: f32) -> f32 {
+    if x < 0. {
+        return 0.;
+    }
+    if x > 1. {
+        return 1.;
+    }
+    x
 }
