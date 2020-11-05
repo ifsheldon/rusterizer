@@ -145,8 +145,8 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
     return normals;
 }
 
-const WIDTH: usize = 300;
-const HEIGHT: usize = 300;
+const WIDTH: usize = 400;
+const HEIGHT: usize = 400;
 
 fn main() {
     let (mut model, _) = tobj::load_obj("data/KAUST_Beacon.obj", true).expect("Loading Error");
@@ -160,7 +160,7 @@ fn main() {
     let mut vertices_os = get_position_os(mesh);
     let mut adj_vertices_map = get_adj_vertices(mesh);
     let identity = Mat4::identity();
-    let obj_translation = Vec3::new_xyz(-125.0, -125.0, -125.0);
+    let obj_translation = Vec3::new_xyz(-110.0, -90.0, -130.0);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
     let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
         position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
@@ -191,7 +191,7 @@ fn main() {
         };
     }).collect();
     let triangles_ec = get_triangles(&vertices_ec, &normal_ec, mesh);
-    let proj_mat = perspective(90_f32.to_radians(), 1.0, 0.1, 500.0);
+    let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
     let now = Instant::now();
     let fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
     println!("Rasterization took {} ms", now.elapsed().as_millis());
