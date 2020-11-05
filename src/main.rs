@@ -1,7 +1,10 @@
+use std::cmp::{max, min};
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::RandomState;
+use std::fs::read;
 use std::ops::{Index, IndexMut};
 use std::sync::{Arc, mpsc, Mutex};
+use std::time::Instant;
 
 use pixel_canvas::{Canvas, Color, XY};
 use rayon::prelude::*;
@@ -142,58 +145,85 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
     return normals;
 }
 
-// fn main() {
-//     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
-//     println!("model num = {}", model.len());
-//     let mesh = &mut model.get_mut(0).unwrap().mesh;
-//     println!("normal num = {}", mesh.normals.len());
-//     println!("triangle num = {}", mesh.num_face_indices.len());
-//     println!("indices len = {}", mesh.indices.len());
-//     println!("vertex num = {}", mesh.positions.len() / 3);
-//
-//     let mut vertices_os = get_position_os(mesh);
-//     let mut adj_vertices_map = get_adj_vertices(mesh);
-//     let identity = Mat4::identity();
-//     let obj_translation = Vec3::new_xyz(0.0, 0.0, 0.0);
-//     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
-//     let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
-//         position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
-//         idx: v_os.idx
-//     }).collect();
-//
-//     let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
-//
-//     let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 1.0),
-//                              Vec3::new_xyz(0.0, 0.0, 0.0),
-//                              Vec3::new_xyz(0.0, 1.0, 0.0));
-//
-//     let normal_mat = camera.inverse_transformation.transpose();
-//     let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
-//         let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
-//         p_ec.scalar_mul_(1.0 / p_ec.w());
-//         return Vertex {
-//             position: p_ec,
-//             idx: v_wc.idx
-//         }
-//     }).collect();
-//     let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
-//         let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
-//         n_ec.normalize_();
-//         return Normal {
-//             vertex_idx: n_wc.vertex_idx,
-//             vec: n_ec
-//         }
-//     }).collect();
-//     let triangles_ec = get_triangles(&vertices_ec, &normal_ec, mesh);
-//
-//
-//     // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
-//     println!("OK");
-// }
+const WIDTH: usize = 300;
+const HEIGHT: usize = 300;
+
+fn main() {
+    let (mut model, _) = tobj::load_obj("data/KAUST_Beacon.obj", true).expect("Loading Error");
+    println!("model num = {}", model.len());
+    let mesh = &mut model.get_mut(0).unwrap().mesh;
+    println!("normal num = {}", mesh.normals.len());
+    println!("triangle num = {}", mesh.num_face_indices.len());
+    println!("indices len = {}", mesh.indices.len());
+    println!("vertex num = {}", mesh.positions.len() / 3);
+
+    let mut vertices_os = get_position_os(mesh);
+    let mut adj_vertices_map = get_adj_vertices(mesh);
+    let identity = Mat4::identity();
+    let obj_translation = Vec3::new_xyz(-125.0, -125.0, -125.0);
+    let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
+    let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
+        position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
+        idx: v_os.idx,
+    }).collect();
+
+    let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
+
+    let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
+                             Vec3::new_xyz(0.0, 0.0, 0.0),
+                             Vec3::new_xyz(0.0, 1.0, 0.0));
+
+    let normal_mat = camera.inverse_transformation.transpose();
+    let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
+        let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
+        p_ec.scalar_mul_(1.0 / p_ec.w());
+        return Vertex {
+            position: p_ec,
+            idx: v_wc.idx,
+        };
+    }).collect();
+    let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
+        let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
+        n_ec.normalize_();
+        return Normal {
+            vertex_idx: n_wc.vertex_idx,
+            vec: n_ec,
+        };
+    }).collect();
+    let triangles_ec = get_triangles(&vertices_ec, &normal_ec, mesh);
+    let proj_mat = perspective(90_f32.to_radians(), 1.0, 0.1, 500.0);
+    let now = Instant::now();
+    let fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+    println!("Rasterization took {} ms", now.elapsed().as_millis());
+
+    let canvas = Canvas::new(WIDTH as usize, HEIGHT as usize)
+        .title("Rusterizer")
+        .state(KeyboardMouseStates::new())
+        .input(KeyboardMouseStates::handle_input);
+
+    let mut survived_fragments = Vec::new();
+    let mut zbuff = [[f32::MAX; WIDTH]; HEIGHT];
+    for f in fragments.iter()
+    {
+        if zbuff[f.y as usize][f.x as usize] > f.z {
+            zbuff[f.y as usize][f.x as usize] = f.z;
+            survived_fragments.push(f.clone());
+        }
+    }
+    canvas.render(move |_state, frame_buffer_image| {
+        for f in survived_fragments.iter()
+        {
+            let color = shade(f);
+            let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
+            *c = color;
+        }
+    });
+    println!("OK");
+}
 
 // fn main()
 // {
-//     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
+//     let (mut model, _) = tobj::load_obj("data/triangle_test_dc_z_buffer.obj", true).expect("Loading Error");
 //     println!("model num = {}", model.len());
 //     let mesh = &mut model.get_mut(0).unwrap().mesh;
 //     println!("normal num = {}", mesh.normals.len());
@@ -204,71 +234,56 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
 //     let mut adj_vertices_map = get_adj_vertices(mesh);
 //     println!("{:?}", adj_vertices_map);
 //     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
-//     let triangles = get_triangles(&vertices, &normals, mesh);
-//     println!("{}", triangles.len());
-//     let mut fragments = raster(triangles.get(0).unwrap());
+//
+//     let normals = vec![Normal {
+//         vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
+//         vertex_idx: 0,
+//     }, Normal {
+//         vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
+//         vertex_idx: 1,
+//     }, Normal {
+//         vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
+//         vertex_idx: 2,
+//     }, Normal {
+//         vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
+//         vertex_idx: 3,
+//     }, Normal {
+//         vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
+//         vertex_idx: 4,
+//     }, Normal {
+//         vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
+//         vertex_idx: 5,
+//     }];
+//     let triangles_ec = get_triangles(&vertices, &normals, mesh);
+//     println!("{}", triangles_ec.len());
+//     let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
+//
+//     let mut fragments = rasterization(&triangles_ec, &proj_mat, 300, 300);
 //
 //     let canvas = Canvas::new(300, 300)
 //         .title("Rusterizer")
 //         .state(KeyboardMouseStates::new())
 //         .input(KeyboardMouseStates::handle_input);
 //
+//
 //     canvas.render(move |_state, frame_buffer_image| {
+//         let mut zbuff = [[f32::MAX; 300]; 300];
 //         for f in fragments.iter()
 //         {
-//             let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-//             *c = Color::rgb(f.color.r() as u8, f.color.g() as u8, f.color.b() as u8);
+//             if zbuff[f.y as usize][f.x as usize] > f.z {
+//                 let color = shade(f);
+//                 let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
+//                 *c = color;
+//                 zbuff[f.y as usize][f.x as usize] = f.z;
+//             }
 //         }
 //     });
 // }
 
-fn main()
-{
-    let (mut model, _) = tobj::load_obj("data/triangle_test_dc.obj", true).expect("Loading Error");
-    println!("model num = {}", model.len());
-    let mesh = &mut model.get_mut(0).unwrap().mesh;
-    println!("normal num = {}", mesh.normals.len());
-    println!("triangle num = {}", mesh.num_face_indices.len());
-    println!("indices len = {}", mesh.indices.len());
-    println!("vertex num = {}", mesh.positions.len() / 3);
-    let mut vertices = get_position_os(mesh);
-    let mut adj_vertices_map = get_adj_vertices(mesh);
-    println!("{:?}", adj_vertices_map);
-    let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
-
-    let normals = vec![Normal {
-        vec: Vec4::new_xyzw(1.0, 0.0, 0.0, 0.0),
-        vertex_idx: 0,
-    }, Normal {
-        vec: Vec4::new_xyzw(0.0, 1.0, 0.0, 0.0),
-        vertex_idx: 1,
-    }, Normal {
-        vec: Vec4::new_xyzw(0.0, 0.0, 1.0, 0.0),
-        vertex_idx: 2,
-    }];
-    let triangles_ec = get_triangles(&vertices, &normals, mesh);
-    println!("{}", triangles_ec.len());
-    let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
-
-    let mut fragments = rasterization(&triangles_ec, &proj_mat, 300, 300);
-
-    let canvas = Canvas::new(300, 300)
-        .title("Rusterizer")
-        .state(KeyboardMouseStates::new())
-        .input(KeyboardMouseStates::handle_input);
-
-    canvas.render(move |_state, frame_buffer_image| {
-        for f in fragments.iter()
-        {
-            let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-            *c = shade(f);
-        }
-    });
-}
-
 pub fn shade(fragment: &Fragment) -> Color
 {
-    let normal = &fragment.normal;
-    let color = normal.scalar_mul(255.0);
-    return Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
+    // let normal = &fragment.normal;
+    // let color = normal.scalar_mul(255.0);
+    // return Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
+    return Color::rgb(200, 0, 200);
 }
