@@ -1,6 +1,7 @@
-use crate::data::{Vec3, Mat4, Vec4};
-use crate::transformations::{look_at, inverse_look_at};
 use std::cmp::{max, min};
+
+use crate::data::{Mat4, Minus, Vec3, Vec4, VecDot};
+use crate::transformations::{inverse_look_at, look_at};
 
 pub struct Camera
 {
@@ -8,7 +9,7 @@ pub struct Camera
     pub gaze_center_wc: Vec3,
     pub up_wc: Vec3,
     pub transformation: Mat4,
-    pub inverse_transformation: Mat4
+    pub inverse_transformation: Mat4,
 }
 
 impl Camera
@@ -21,7 +22,7 @@ impl Camera
             gaze_center_wc,
             up_wc,
             transformation: look_at(&pos_wc, &gaze_center_wc, &up_wc),
-            inverse_transformation: inverse_look_at(&pos_wc, &gaze_center_wc, &up_wc)
+            inverse_transformation: inverse_look_at(&pos_wc, &gaze_center_wc, &up_wc),
         }
     }
 }
@@ -30,7 +31,7 @@ impl Camera
 pub struct Vertex
 {
     pub position: Vec4,
-    pub idx: usize
+    pub idx: usize,
 }
 
 impl Vertex
@@ -57,7 +58,7 @@ impl Vertex
 pub struct Normal
 {
     pub vec: Vec4,
-    pub vertex_idx: usize
+    pub vertex_idx: usize,
 }
 
 pub struct Triangle<'a>
@@ -67,7 +68,7 @@ pub struct Triangle<'a>
     v3: &'a Vertex,
     n1: &'a Normal,
     n2: &'a Normal,
-    n3: &'a Normal
+    n3: &'a Normal,
 }
 
 impl<'a> Triangle<'a>
@@ -81,7 +82,7 @@ impl<'a> Triangle<'a>
             v2: vn2.0,
             n2: vn2.1,
             v3: vn3.0,
-            n3: vn3.1
+            n3: vn3.1,
         }
     }
 }
@@ -92,7 +93,7 @@ pub struct Fragment
     pub x: u32,
     pub y: u32,
     pub z: f32,
-    pub color: Vec3
+    pub color: Vec3,
 }
 
 pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
@@ -136,7 +137,7 @@ pub fn raster(triangle_sc: &Triangle) -> Vec<Fragment>
                     x: j as u32,
                     y: (y_min + i) as u32,
                     z: 0.0, //TODO: interpolate z
-                    color
+                    color,
                 })
             }
         }
