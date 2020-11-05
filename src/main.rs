@@ -1,13 +1,16 @@
 use std::collections::{HashMap, HashSet};
-use crate::data::{Vec3, Add, Normalize, Minus, Cross, ScalarMul, Mat4, Vec4, MatVecDot, Transpose};
 use std::collections::hash_map::RandomState;
-use rayon::prelude::*;
-use std::sync::{Arc, Mutex, mpsc};
-use tobj::Mesh;
-use crate::shading::{Vertex, Normal, Camera, Triangle, raster};
-use crate::state::KeyboardMouseStates;
-use pixel_canvas::{Canvas, Color, XY};
 use std::ops::{Index, IndexMut};
+use std::sync::{Arc, mpsc, Mutex};
+
+use pixel_canvas::{Canvas, Color, XY};
+use rayon::prelude::*;
+use tobj::Mesh;
+
+use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4};
+use crate::shading::{Camera, Normal, raster, rasterization, Triangle, Vertex};
+use crate::state::KeyboardMouseStates;
+use crate::transformations::perspective;
 
 mod err;
 mod data;
@@ -15,7 +18,7 @@ mod state;
 mod transformations;
 mod shading;
 
-const OBJ_PATH: &'static str = "data/triangle_test.obj";
+const OBJ_PATH: &'static str = "data/triangle_test_dc.obj";
 const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
 const OBJ_BOUNDING_RADIUS: f32 = 125.0;
 
@@ -32,8 +35,8 @@ pub fn get_position_os(mesh: &Mesh) -> Vec<Vertex>
                 let z = *mesh.positions.get_unchecked(i + 2);
                 return Vertex {
                     position: Vec4::new_xyzw(x, y, z, 1.0),
-                    idx: vertex_idx
-                }
+                    idx: vertex_idx,
+                };
             }
     }).collect();
     positions_os.sort_by(|a, b| a.idx.partial_cmp(&b.idx).unwrap());
@@ -131,8 +134,8 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
             vn.normalize_();
             return Normal {
                 vertex_idx: *vertex,
-                vec: Vec4::from(&vn, 0.0)
-            }
+                vec: Vec4::from(&vn, 0.0),
+            };
         }
     }).collect();
     normals.sort_by(|a, b| a.vertex_idx.partial_cmp(&b.vertex_idx).unwrap());
@@ -181,15 +184,47 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
 //             vec: n_ec
 //         }
 //     }).collect();
-//     let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &adj_vertices_map);
+//     let triangles_ec = get_triangles(&vertices_ec, &normal_ec, mesh);
+//
 //
 //     // TODO: 1. triangles struct 2. back-faced culling 3. combine all transformations 4.simple rasterization 5. rasterization with vectors
 //     println!("OK");
 // }
 
+// fn main()
+// {
+//     let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
+//     println!("model num = {}", model.len());
+//     let mesh = &mut model.get_mut(0).unwrap().mesh;
+//     println!("normal num = {}", mesh.normals.len());
+//     println!("triangle num = {}", mesh.num_face_indices.len());
+//     println!("indices len = {}", mesh.indices.len());
+//     println!("vertex num = {}", mesh.positions.len() / 3);
+//     let mut vertices = get_position_os(mesh);
+//     let mut adj_vertices_map = get_adj_vertices(mesh);
+//     println!("{:?}", adj_vertices_map);
+//     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
+//     let triangles = get_triangles(&vertices, &normals, mesh);
+//     println!("{}", triangles.len());
+//     let mut fragments = raster(triangles.get(0).unwrap());
+//
+//     let canvas = Canvas::new(300, 300)
+//         .title("Rusterizer")
+//         .state(KeyboardMouseStates::new())
+//         .input(KeyboardMouseStates::handle_input);
+//
+//     canvas.render(move |_state, frame_buffer_image| {
+//         for f in fragments.iter()
+//         {
+//             let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
+//             *c = Color::rgb(f.color.r() as u8, f.color.g() as u8, f.color.b() as u8);
+//         }
+//     });
+// }
+
 fn main()
 {
-    let (mut model, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
+    let (mut model, _) = tobj::load_obj("data/triangle_test_dc.obj", true).expect("Loading Error");
     println!("model num = {}", model.len());
     let mesh = &mut model.get_mut(0).unwrap().mesh;
     println!("normal num = {}", mesh.normals.len());
@@ -200,9 +235,11 @@ fn main()
     let mut adj_vertices_map = get_adj_vertices(mesh);
     println!("{:?}", adj_vertices_map);
     let mut normals: Vec<Normal> = get_normals(&vertices, &adj_vertices_map);
-    let triangles = get_triangles(&vertices, &normals, mesh);
-    println!("{}", triangles.len());
-    let mut fragments = raster(triangles.get(0).unwrap());
+    let triangles_ec = get_triangles(&vertices, &normals, mesh);
+    println!("{}", triangles_ec.len());
+    let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
+
+    let mut fragments = rasterization(&triangles_ec, &proj_mat, 300, 300);
 
     let canvas = Canvas::new(300, 300)
         .title("Rusterizer")
