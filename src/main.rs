@@ -1,9 +1,5 @@
-use std::cmp::{max, min};
-use std::collections::{HashMap, HashSet};
-use std::collections::hash_map::RandomState;
-use std::fs::read;
-use std::ops::{Index, IndexMut};
-use std::sync::{Arc, mpsc, Mutex};
+use std::collections::HashMap;
+use std::ops::IndexMut;
 use std::time::Instant;
 
 use pixel_canvas::{Canvas, Color, XY};
@@ -157,8 +153,8 @@ fn main() {
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
 
-    let mut vertices_os = get_position_os(mesh);
-    let mut adj_vertices_map = get_adj_vertices(mesh);
+    let vertices_os = get_position_os(mesh);
+    let adj_vertices_map = get_adj_vertices(mesh);
     let identity = Mat4::identity();
     let obj_translation = Vec3::new_xyz(-110.0, -90.0, -130.0);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
@@ -167,7 +163,7 @@ fn main() {
         idx: v_os.idx,
     }).collect();
 
-    let mut normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
+    let normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
 
     let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
                              Vec3::new_xyz(0.0, 0.0, 0.0),

@@ -1,4 +1,4 @@
-use crate::data::{Add, Mat4, Normalize, ScalarMul, Vec3, Vec4, _Mat, Minus, Cross, Mat3};
+use crate::data::{Add, Mat4, Normalize, ScalarMul, Vec3, Vec4, _Mat, Minus, Cross};
 
 ///
 /// Combines Translate Matrix and mat

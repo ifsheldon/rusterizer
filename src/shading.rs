@@ -1,5 +1,3 @@
-use std::cmp::{max, min};
-
 use rayon::prelude::*;
 
 use crate::data::{Add, Mat4, MatVecDot, Minus, Product, ScalarMul, Vec3, Vec4, VecDot};
