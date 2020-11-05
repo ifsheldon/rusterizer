@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use tobj::Mesh;
 
 use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4};
-use crate::shading::{Camera, Normal, raster, rasterization, Triangle, Vertex};
+use crate::shading::{Camera, Fragment, Normal, raster, rasterization, Triangle, Vertex};
 use crate::state::KeyboardMouseStates;
 use crate::transformations::perspective;
 
@@ -261,9 +261,14 @@ fn main()
         for f in fragments.iter()
         {
             let c = frame_buffer_image.index_mut(XY(f.x as usize, f.y as usize));
-            let normal = &f.normal;
-            let color = normal.scalar_mul(255.0);
-            *c = Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
+            *c = shade(f);
         }
     });
+}
+
+pub fn shade(fragment: &Fragment) -> Color
+{
+    let normal = &fragment.normal;
+    let color = normal.scalar_mul(255.0);
+    return Color::rgb(color.r() as u8, color.g() as u8, color.b() as u8);
 }
