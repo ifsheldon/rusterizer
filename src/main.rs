@@ -163,12 +163,8 @@ fn main() {
         position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
         idx: v_os.idx,
     }).collect();
-
     let normals_wc: Vec<Normal> = get_normals(&vertices_wc, &adj_vertices_map);
 
-    let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
-                             Vec3::new_xyz(0.0, 0.0, 0.0),
-                             Vec3::new_xyz(0.0, 1.0, 0.0));
     let light_pos_wc = Vec4::new_xyzw(200.0, 200.0, 200.0, 1.0);
     let silver_material = Material {
         ambient: Vec3::new_rgb(0.1, 0.1, 0.1),
@@ -177,14 +173,20 @@ fn main() {
         global_reflection: Vec3::new_rgb(0.5, 0.5, 0.5),
         specular: 16.0,
     };
+
     let mut zbuff = ZBuffer::new(WIDTH, HEIGHT, f32::MAX);
+
     let canvas = Canvas::new(WIDTH, HEIGHT)
         .title("Rusterizer")
         .state(KeyboardMouseStates::new())
         .input(KeyboardMouseStates::handle_input);
 
     let now = Instant::now();
+
     canvas.render(move |_state, frame_buffer_image| {
+        let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
+                                 Vec3::new_xyz(0.0, 0.0, 0.0),
+                                 Vec3::new_xyz(0.0, 1.0, 0.0));
         let normal_mat = camera.inverse_transformation.transpose();
         let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
             let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
