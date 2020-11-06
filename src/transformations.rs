@@ -1,4 +1,4 @@
-use crate::data::{Add, Mat4, Normalize, ScalarMul, Vec3, Vec4, _Mat, Minus, Cross};
+use crate::data::{_Mat, Add, Cross, Mat4, Minus, Normalize, ScalarMul, Vec3, Vec4};
 
 ///
 /// Combines Translate Matrix and mat
@@ -109,8 +109,9 @@ pub fn perspective(fovy_rad: f32, aspect: f32, near: f32, far: f32) -> Mat4
 
 #[cfg(test)]
 mod test {
+    use crate::data::{MatVecDot, ScalarDiv};
+
     use super::*;
-    use crate::data::MatVecDot;
 
     #[test]
     fn test_look_at1() {
@@ -213,20 +214,20 @@ mod test {
         let model_mat = Mat4::identity();
         let view_mat = look_at(&Vec3::new_xyz(1.0, 0.0, 0.0), &Vec3::new_xyz(0.0, 0.0, 0.0), &Vec3::new_xyz(0.0, 1.0, 0.0));
         let project_mat = perspective(45.0_f32.to_radians(), 1.0, 0.1, 100.0);
-        println!("{:?}",view_mat.data);
+        println!("{:?}", view_mat.data);
         let model_view_mat = view_mat.dot_mat(&model_mat);
         let model_view_proj_mat = project_mat.dot_mat(&model_view_mat);
         let point = Vec4::new_xyzw(1.2, 3.4, 1.09, 1.0); // need to check with glm
         let mut p = model_view_mat.mat_vec_dot(&point);
-        p.scalar_mul_(1.0 / p.w());
+        p.scalar_div_(p.w());
         println!("{:?}", p);
     }
 
     #[test]
     fn test_perspective1()
     {
-        let p = Vec4::new_xyzw(1.0,1.0,-1.0,1.0);
-        let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0,100.0);
+        let p = Vec4::new_xyzw(1.0, 1.0, -1.0, 1.0);
+        let proj_mat = perspective(90_f32.to_radians(), 1.0, 1.0, 100.0);
         let pp = proj_mat.mat_vec_dot(&p);
         println!("{:?}", pp);
     }

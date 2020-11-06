@@ -1,6 +1,6 @@
 use rayon::prelude::*;
 
-use crate::data::{Add, Mat4, MatVecDot, Minus, Product, ScalarMul, Vec3, Vec4, VecDot};
+use crate::data::{Add, Mat4, MatVecDot, Minus, Product, ScalarMul, Vec3, Vec4, VecDot, ScalarDiv};
 use crate::transformations::{inverse_look_at, look_at};
 
 pub struct Camera
@@ -176,7 +176,7 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
         let vs = vec![&triangle_ec.v1.position, &triangle_ec.v2.position, &triangle_ec.v3.position];
         let vs_dc: Vec<Vec4> = vs.iter().map(|p| {
             let mut v_sc = perspective_mat.mat_vec_dot(*p);
-            v_sc.scalar_mul_(1.0 / v_sc.w()); //normalize self
+            v_sc.scalar_div_( v_sc.w()); //normalize self
             let v_dc = Vec4::new_xyzw((v_sc.x() + 1.0) * 0.5 * w_f,
                                       (v_sc.y() + 1.0) * 0.5 * h_f,
                                       -1.0 / v_sc.z(), // for perspective correctness, precompute 1/z //
@@ -211,7 +211,7 @@ pub fn rasterization(triangles_ec: &Vec<Triangle>, perspective_mat: &Mat4, width
                     let z = 1.0 / (w0 * v0_dc.z() + w1 * v1_dc.z() + w2 * v2_dc.z());
                     let normal = interpolate((w0, w1, w2), (&triangle_ec.n1.vec, &triangle_ec.n2.vec, &triangle_ec.n3.vec), z);
                     let mut coord_ec = interpolate((w0, w1, w2), (&triangle_ec.v1.position, &triangle_ec.v2.position, &triangle_ec.v3.position), z);
-                    coord_ec.scalar_mul_(1.0 / coord_ec.w());
+                    coord_ec.scalar_div_(coord_ec.w());
                     let f = Fragment {
                         x: i,
                         y: j,

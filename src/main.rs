@@ -6,7 +6,7 @@ use pixel_canvas::{Canvas, Color, XY};
 use rayon::prelude::*;
 use tobj::Mesh;
 
-use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4};
+use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4, ScalarDiv};
 use crate::shading::*;
 use crate::state::KeyboardMouseStates;
 use crate::transformations::perspective;
@@ -111,15 +111,15 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
     let mut normals: Vec<Normal> = adj_vertices_map.par_iter().map(|(vertex, adj_point_vertices)| {
         unsafe {
             let mut v_p = vertices.get_unchecked(*vertex).position.clone();
-            v_p.scalar_mul_(1.0 / v_p.w());
+            v_p.scalar_div_(v_p.w());
             let v_p = Vec3::from(&v_p);
             let mut vn = Vec3::new(0.0);
             for adj_vertices in adj_point_vertices.iter()
             {
                 let mut v1_p = vertices.get_unchecked(adj_vertices.0).position.clone();
                 let mut v2_p = vertices.get_unchecked(adj_vertices.1).position.clone();
-                v1_p.scalar_mul_(1.0 / v1_p.w());
-                v2_p.scalar_mul_(1.0 / v2_p.w());
+                v1_p.scalar_div_(v1_p.w());
+                v2_p.scalar_div_(v2_p.w());
 
                 let v1_p = Vec3::from(&v1_p);
                 let v2_p = Vec3::from(&v2_p);
@@ -183,14 +183,18 @@ fn main() {
 
     let now = Instant::now();
 
-    canvas.render(move |_state, frame_buffer_image| {
-        let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
+    let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, 200.0);
+    canvas.render(move |state, frame_buffer_image| {
+        if state.received_keycode
+        {}
+        state.reset_flags();
+        let camera = Camera::new(cam_pos_wc,
                                  Vec3::new_xyz(0.0, 0.0, 0.0),
                                  Vec3::new_xyz(0.0, 1.0, 0.0));
         let normal_mat = camera.inverse_transformation.transpose();
         let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
             let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
-            p_ec.scalar_mul_(1.0 / p_ec.w());
+            p_ec.scalar_div_(p_ec.w());
             return Vertex {
                 position: p_ec,
                 idx: v_wc.idx,
@@ -206,7 +210,7 @@ fn main() {
         }).collect();
         let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
         let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
-        light_pos_ec.scalar_mul_(1.0 / light_pos_ec.w());
+        light_pos_ec.scalar_div_( light_pos_ec.w());
         let light_ec = Light {
             position: Vec3::from(&light_pos_ec),
             original_position: Vec3::from(&light_pos_ec),
