@@ -186,8 +186,12 @@ fn main() {
 
     let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, 200.0);
     canvas.render(move |state, frame_buffer_image| {
-        if state.received_keycode
-        {}
+        if state.received_mouse_press
+        {
+            let x = state.x;
+            let y = state.y;
+            println!("{} {}", x,y);
+        }
         state.reset_flags();
         let camera = Camera::new(cam_pos_wc,
                                  Vec3::new_xyz(0.0, 0.0, 0.0),
@@ -249,7 +253,7 @@ fn main() {
             }
         }
         let after_rasterization = now.elapsed().as_millis();
-        println!("Rasterization took {} ms", after_rasterization - before_rasterization);
+        // println!("Rasterization took {} ms", after_rasterization - before_rasterization);
 
         let before_shading = now.elapsed().as_millis();
         let colors: Vec<(XY, Color)> = survived_fragments.par_iter().map(|f| {
@@ -266,7 +270,7 @@ fn main() {
             *frame_buffer_image.index_mut(XY(xy.0, xy.1)) = color.1.clone();
         }
         let after_shading = now.elapsed().as_millis();
-        println!("Phong shading used {} ms", after_shading - before_shading);
+        // println!("Phong shading used {} ms", after_shading - before_shading);
         zbuff.reset(f32::MAX);
     });
     println!("OK");
