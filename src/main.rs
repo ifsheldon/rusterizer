@@ -141,8 +141,8 @@ pub fn get_normals(vertices: &Vec<Vertex>, adj_vertices_map: &HashMap<usize, Vec
     return normals;
 }
 
-const WIDTH: usize = 400;
-const HEIGHT: usize = 400;
+const WIDTH: usize = 600;
+const HEIGHT: usize = 600;
 
 fn main() {
     let (mut models, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
@@ -167,8 +167,8 @@ fn main() {
 
     let light_pos_wc = Vec4::new_xyzw(200.0, 200.0, 200.0, 1.0);
     let silver_material = Material {
-        ambient: Vec3::new_rgb(0.1, 0.1, 0.1),
-        diffuse: Vec3::new_rgb(0.5, 0.5, 0.5),
+        ambient: Vec3::new_rgb(0.1, 0.1, 0.2),
+        diffuse: Vec3::new_rgb(0.5, 0.5, 0.6),
         reflection: Vec3::new_rgb(1.0, 1.0, 1.0),
         global_reflection: Vec3::new_rgb(0.5, 0.5, 0.5),
         specular: 16.0,
