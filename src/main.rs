@@ -6,7 +6,7 @@ use pixel_canvas::{Canvas, Color, XY};
 use rayon::prelude::*;
 use tobj::Mesh;
 
-use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarMul, Transpose, Vec3, Vec4, ScalarDiv};
+use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarDiv, ScalarMul, Transpose, Vec3, Vec4};
 use crate::shading::*;
 use crate::state::KeyboardMouseStates;
 use crate::transformations::perspective;
@@ -192,7 +192,8 @@ fn main() {
                                  Vec3::new_xyz(0.0, 0.0, 0.0),
                                  Vec3::new_xyz(0.0, 1.0, 0.0));
         let normal_mat = camera.inverse_transformation.transpose();
-        let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
+
+        let mut vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
             let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
             p_ec.scalar_div_(p_ec.w());
             return Vertex {
@@ -200,7 +201,8 @@ fn main() {
                 idx: v_wc.idx,
             };
         }).collect();
-        let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
+        vertices_ec.sort_by(|a, b| a.idx.partial_cmp(&b.idx).unwrap());
+        let mut normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
             let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
             n_ec.normalize_();
             return Normal {
@@ -208,9 +210,11 @@ fn main() {
                 vec: n_ec,
             };
         }).collect();
+        normal_ec.sort_by(|a, b| a.vertex_idx.partial_cmp(&b.vertex_idx).unwrap());
+
         let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
         let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
-        light_pos_ec.scalar_div_( light_pos_ec.w());
+        light_pos_ec.scalar_div_(light_pos_ec.w());
         let light_ec = Light {
             position: Vec3::from(&light_pos_ec),
             original_position: Vec3::from(&light_pos_ec),
