@@ -211,10 +211,12 @@ fn main() {
                 true => ((x as f32) * 0.8) / (WIDTH as f32),
                 false => (x as f32) / (WIDTH as f32)
             };
+            normalized_x = (normalized_x - 0.5) * 2.0;
             let mut normalized_y = match os_windows {
                 true => ((y as f32) + 100.0) * 0.8 / (HEIGHT as f32),
                 false => (y as f32) / (HEIGHT as f32)
             };
+            normalized_y = (normalized_y - 0.5) * 2.0;
             let sqr = normalized_x * normalized_x - normalized_y * normalized_y;
             let z = if sqr < 1.0 { (1.0 - sqr).sqrt() } else {
                 let len = sqr.sqrt();
