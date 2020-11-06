@@ -223,12 +223,13 @@ fn main() {
         };
         let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
         let before_rasterization = now.elapsed().as_millis();
-        let fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+        let mut fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
         let mut survived_fragments = Vec::new();
-        for f in fragments.iter()
+        while !fragments.is_empty()
         {
+            let f = fragments.pop().unwrap();
             if zbuff.update(f.x as usize, f.y as usize, f.z) {
-                survived_fragments.push(f.clone());
+                survived_fragments.push(f);
             }
         }
         let after_rasterization = now.elapsed().as_millis();
@@ -300,6 +301,11 @@ impl ZBuffer
             return self.depth_buffer.get_unchecked_mut(x).get_unchecked_mut(y);
         }
     }
+}
+
+pub fn gouraud_shade(vertices_ec: Vec<Vertex>, normals_ec: Vec<Normal>, light: &Light, material: &Material) -> Vec<Vec3>
+{
+    unimplemented!()
 }
 
 pub fn shade(fragment: &Fragment, light: &Light, material: &Material) -> Color
