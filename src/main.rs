@@ -175,6 +175,7 @@ fn main() {
     };
 
     let mut zbuff = ZBuffer::new(WIDTH, HEIGHT, f32::MAX);
+    let gouraud_shading = true;
 
     let canvas = Canvas::new(WIDTH, HEIGHT)
         .title("Rusterizer")
@@ -191,8 +192,9 @@ fn main() {
         let camera = Camera::new(cam_pos_wc,
                                  Vec3::new_xyz(0.0, 0.0, 0.0),
                                  Vec3::new_xyz(0.0, 1.0, 0.0));
+        let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
+        light_pos_ec.scalar_div_(light_pos_ec.w());
         let normal_mat = camera.inverse_transformation.transpose();
-
         let mut vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
             let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
             p_ec.scalar_div_(p_ec.w());
@@ -212,18 +214,32 @@ fn main() {
         }).collect();
         normal_ec.sort_by(|a, b| a.vertex_idx.partial_cmp(&b.vertex_idx).unwrap());
 
-        let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
-        let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
-        light_pos_ec.scalar_div_(light_pos_ec.w());
-        let light_ec = Light {
-            position: Vec3::from(&light_pos_ec),
-            original_position: Vec3::from(&light_pos_ec),
-            ambient: Vec3::new_rgb(0.3, 0.3, 0.3),
-            diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
-        };
-        let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+        let light_ec;
         let before_rasterization = now.elapsed().as_millis();
-        let mut fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+        let mut fragments;
+        if gouraud_shading
+        {
+            light_ec = Light {
+                position: Vec3::from(&light_pos_ec),
+                original_position: Vec3::from(&light_pos_ec),
+                ambient: Vec3::new_rgb(1.0, 1.0, 1.0),
+                diffuse: Vec3::new_rgb(1.0, 1.0, 1.0),
+            };
+            let vertices_colors = gouraud_shade(&vertices_ec, &normal_ec, &light_ec, &silver_material);
+            let triangles_ec = get_triangles(&vertices_ec, &vertices_colors, &mesh);
+            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+            fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+        } else {
+            light_ec = Light {
+                position: Vec3::from(&light_pos_ec),
+                original_position: Vec3::from(&light_pos_ec),
+                ambient: Vec3::new_rgb(0.3, 0.3, 0.3),
+                diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
+            };
+            let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
+            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+            fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+        }
         let mut survived_fragments = Vec::new();
         while !fragments.is_empty()
         {
@@ -237,7 +253,10 @@ fn main() {
 
         let before_shading = now.elapsed().as_millis();
         let colors: Vec<(XY, Color)> = survived_fragments.par_iter().map(|f| {
-            let color = shade(f, &light_ec, &silver_material);
+            let color = match gouraud_shading {
+                true => get_gouraud_color(f),
+                false => shade(f, &light_ec, &silver_material)
+            };
             return (XY(f.x as usize, f.y as usize), color);
         }).collect();
 
@@ -303,9 +322,40 @@ impl ZBuffer
     }
 }
 
-pub fn gouraud_shade(vertices_ec: Vec<Vertex>, normals_ec: Vec<Normal>, light: &Light, material: &Material) -> Vec<Vec3>
+pub fn get_gouraud_color(fragment: &Fragment) -> Color
 {
-    unimplemented!()
+    // println!("{:?}", fragment.normal_ec);
+    let mut color_f = Vec3::from(&fragment.normal_ec);
+    color_f.scalar_mul_(-1.0);
+    return to_color(color_f);
+}
+
+pub fn gouraud_shade(vertices_ec: &Vec<Vertex>, normals_ec: &Vec<Normal>, light: &Light, material: &Material) -> Vec<Normal>
+{
+    assert_eq!(vertices_ec.len(), normals_ec.len());
+    let idxs: Vec<usize> = (0..vertices_ec.len()).collect();
+    let mut vertices_colors: Vec<Normal> = idxs.par_iter().map(|i| {
+        let i = *i;
+        unsafe {
+            let n = normals_ec.get_unchecked(i);
+            let v = vertices_ec.get_unchecked(i);
+            let mut normal_ec = Vec3::from(&n.vec);
+            normal_ec.normalize_();
+            let pos_ec = v.position.clone();
+            let mut light_dir = light.position._minus(&Vec3::from(&pos_ec));
+            light_dir.normalize_();
+            let mut view_dir = Vec3::from(&pos_ec);
+            view_dir.scalar_mul_(-1.0);
+            view_dir.normalize_();
+            let color_f = phong_lighting(&light_dir, &normal_ec, &view_dir, material, light);
+            return Normal {
+                vec: Vec4::from(&color_f, 0.0),
+                vertex_idx: i,
+            };
+        }
+    }).collect();
+    vertices_colors.sort_by(|a, b| a.vertex_idx.partial_cmp(&b.vertex_idx).unwrap());
+    return vertices_colors;
 }
 
 pub fn shade(fragment: &Fragment, light: &Light, material: &Material) -> Color
