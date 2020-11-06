@@ -146,9 +146,9 @@ const HEIGHT: usize = 600;
 
 fn main() {
     let (mut models, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
-    println!("model num = {}", models.len());
     let model = models.pop().unwrap();
     let mesh = model.mesh;
+    println!("model num = {}", models.len());
     println!("normal num = {}", mesh.normals.len());
     println!("triangle num = {}", mesh.num_face_indices.len());
     println!("indices len = {}", mesh.indices.len());
