@@ -189,6 +189,15 @@ fn main() {
     let far = 3.0 * OBJ_BOUNDING_RADIUS;
     let mut arc_ball_initialized = false;
     let mut arc_ball_previous = Vec3::new_xyz(0.0, 0.0, 0.0);
+
+    let mut raster_time_ema = 0.;
+    let mut shading_time_ema = 0.;
+    let ema_alpha = 0.95;
+    let ema_beta = 1. - ema_alpha;
+
+    let interval = 5;
+    let mut i = 0;
+
     canvas.render(move |state, frame_buffer_image| {
         frame_buffer_image.par_iter_mut().for_each(|e| *e = Color::BLACK);
         if state.received_mouse_press
@@ -296,7 +305,8 @@ fn main() {
             }
         }
         let after_rasterization = now.elapsed().as_millis();
-        // println!("Rasterization took {} ms", after_rasterization - before_rasterization);
+        raster_time_ema = ema_alpha * raster_time_ema + ema_beta * (after_rasterization - before_rasterization) as f32;
+
 
         let before_shading = now.elapsed().as_millis();
         let colors: Vec<(XY, Color)> = survived_fragments.par_iter().map(|f| {
@@ -313,7 +323,14 @@ fn main() {
             *frame_buffer_image.index_mut(XY(xy.0, xy.1)) = color.1.clone();
         }
         let after_shading = now.elapsed().as_millis();
-        // println!("Phong shading used {} ms", after_shading - before_shading);
+        shading_time_ema = ema_alpha * shading_time_ema + ema_beta * (after_shading - before_shading) as f32;
+
+        if i % interval == 0 {
+            i = 0;
+            println!("Rasterization Time EMA {} ms", raster_time_ema);
+            println!("Shading Time EMA {} ms", shading_time_ema);
+        }
+        i += 1;
         zbuff.reset(f32::MAX);
     });
     println!("OK");
