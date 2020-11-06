@@ -90,9 +90,9 @@ pub fn get_adj_vertices(mesh: &Mesh) -> HashMap<usize, Vec<(usize, usize)>>
 
 pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, mesh: &Mesh) -> Vec<Triangle<'a>>
 {
-    let mut triangles = Vec::new();
-    for i in (0..mesh.indices.len()).step_by(3)
-    {
+    let idxs: Vec<usize> = (0..mesh.indices.len()).step_by(3).collect();
+    let triangles: Vec<Triangle> = idxs.par_iter().map(|i| {
+        let i = *i;
         unsafe {
             let idx1 = (*mesh.indices.get_unchecked(i)) as usize;
             let idx2 = (*mesh.indices.get_unchecked(i + 1)) as usize;
@@ -100,9 +100,9 @@ pub fn get_triangles<'a>(vertices: &'a Vec<Vertex>, normals: &'a Vec<Normal>, me
             let triangle = Triangle::new((vertices.get_unchecked(idx1), normals.get_unchecked(idx1)),
                                          (vertices.get_unchecked(idx2), normals.get_unchecked(idx2)),
                                          (vertices.get_unchecked(idx3), normals.get_unchecked(idx3)));
-            triangles.push(triangle);
+            return triangle;
         }
-    }
+    }).collect();
     return triangles;
 }
 
@@ -145,16 +145,17 @@ const WIDTH: usize = 400;
 const HEIGHT: usize = 400;
 
 fn main() {
-    let (mut model, _) = tobj::load_obj("data/KAUST_Beacon.obj", true).expect("Loading Error");
-    println!("model num = {}", model.len());
-    let mesh = &mut model.get_mut(0).unwrap().mesh;
+    let (mut models, _) = tobj::load_obj("data/KAUST_Beacon.obj", true).expect("Loading Error");
+    println!("model num = {}", models.len());
+    let model = models.pop().unwrap();
+    let mesh = model.mesh;
     println!("normal num = {}", mesh.normals.len());
     println!("triangle num = {}", mesh.num_face_indices.len());
     println!("indices len = {}", mesh.indices.len());
     println!("vertex num = {}", mesh.positions.len() / 3);
 
-    let vertices_os = get_position_os(mesh);
-    let adj_vertices_map = get_adj_vertices(mesh);
+    let vertices_os = get_position_os(&mesh);
+    let adj_vertices_map = get_adj_vertices(&mesh);
     let identity = Mat4::identity();
     let obj_translation = Vec3::new_xyz(-110.0, -90.0, -130.0);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
@@ -168,53 +169,7 @@ fn main() {
     let camera = Camera::new(Vec3::new_xyz(0.0, 0.0, 200.0),
                              Vec3::new_xyz(0.0, 0.0, 0.0),
                              Vec3::new_xyz(0.0, 1.0, 0.0));
-
-    let normal_mat = camera.inverse_transformation.transpose();
-    let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
-        let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
-        p_ec.scalar_mul_(1.0 / p_ec.w());
-        return Vertex {
-            position: p_ec,
-            idx: v_wc.idx,
-        };
-    }).collect();
-    let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
-        let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
-        n_ec.normalize_();
-        return Normal {
-            vertex_idx: n_wc.vertex_idx,
-            vec: n_ec,
-        };
-    }).collect();
-    let triangles_ec = get_triangles(&vertices_ec, &normal_ec, mesh);
-    let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
-    let now = Instant::now();
-    let fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
-    println!("Rasterization took {} ms", now.elapsed().as_millis());
-
-    let canvas = Canvas::new(WIDTH as usize, HEIGHT as usize)
-        .title("Rusterizer")
-        .state(KeyboardMouseStates::new())
-        .input(KeyboardMouseStates::handle_input);
-
-    let mut survived_fragments = Vec::new();
-    let mut zbuff = [[f32::MAX; WIDTH]; HEIGHT];
-    for f in fragments.iter()
-    {
-        if zbuff[f.y as usize][f.x as usize] > f.z {
-            zbuff[f.y as usize][f.x as usize] = f.z;
-            survived_fragments.push(f.clone());
-        }
-    }
     let light_pos_wc = Vec4::new_xyzw(200.0, 200.0, 200.0, 1.0);
-    let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
-    light_pos_ec.scalar_mul_(1.0 / light_pos_ec.w());
-    let light_ec = Light {
-        position: Vec3::from(&light_pos_ec),
-        original_position: Vec3::from(&light_pos_ec),
-        ambient: Vec3::new_rgb(0.3, 0.3, 0.3),
-        diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
-    };
     let silver_material = Material {
         ambient: Vec3::new_rgb(0.1, 0.1, 0.1),
         diffuse: Vec3::new_rgb(0.5, 0.5, 0.5),
@@ -222,9 +177,54 @@ fn main() {
         global_reflection: Vec3::new_rgb(0.5, 0.5, 0.5),
         specular: 16.0,
     };
+    let mut zbuff = ZBuffer::new(WIDTH, HEIGHT, f32::MAX);
+    let canvas = Canvas::new(WIDTH, HEIGHT)
+        .title("Rusterizer")
+        .state(KeyboardMouseStates::new())
+        .input(KeyboardMouseStates::handle_input);
 
+    let now = Instant::now();
     canvas.render(move |_state, frame_buffer_image| {
-        let start = now.elapsed().as_millis();
+        let normal_mat = camera.inverse_transformation.transpose();
+        let vertices_ec: Vec<Vertex> = vertices_wc.par_iter().map(|v_wc| {
+            let mut p_ec = camera.transformation.mat_vec_dot(&v_wc.position);
+            p_ec.scalar_mul_(1.0 / p_ec.w());
+            return Vertex {
+                position: p_ec,
+                idx: v_wc.idx,
+            };
+        }).collect();
+        let normal_ec: Vec<Normal> = normals_wc.par_iter().map(|n_wc| {
+            let mut n_ec = normal_mat.mat_vec_dot(&n_wc.vec);
+            n_ec.normalize_();
+            return Normal {
+                vertex_idx: n_wc.vertex_idx,
+                vec: n_ec,
+            };
+        }).collect();
+        let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
+        let mut light_pos_ec = camera.transformation.mat_vec_dot(&light_pos_wc);
+        light_pos_ec.scalar_mul_(1.0 / light_pos_ec.w());
+        let light_ec = Light {
+            position: Vec3::from(&light_pos_ec),
+            original_position: Vec3::from(&light_pos_ec),
+            ambient: Vec3::new_rgb(0.3, 0.3, 0.3),
+            diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
+        };
+        let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+        let before_rasterization = now.elapsed().as_millis();
+        let fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
+        let mut survived_fragments = Vec::new();
+        for f in fragments.iter()
+        {
+            if zbuff.update(f.x as usize, f.y as usize, f.z) {
+                survived_fragments.push(f.clone());
+            }
+        }
+        let after_rasterization = now.elapsed().as_millis();
+        println!("Rasterization took {} ms", after_rasterization - before_rasterization);
+
+        let before_shading = now.elapsed().as_millis();
         let colors: Vec<(XY, Color)> = survived_fragments.par_iter().map(|f| {
             let color = shade(f, &light_ec, &silver_material);
             return (XY(f.x as usize, f.y as usize), color);
@@ -235,10 +235,61 @@ fn main() {
             let xy = &color.0;
             *frame_buffer_image.index_mut(XY(xy.0, xy.1)) = color.1.clone();
         }
-        let stop = now.elapsed().as_millis();
-        println!("Phong shading used {} ms", stop - start);
+        let after_shading = now.elapsed().as_millis();
+        println!("Phong shading used {} ms", after_shading - before_shading);
+        zbuff.reset(f32::MAX);
     });
     println!("OK");
+}
+
+pub struct ZBuffer
+{
+    depth_buffer: Vec<Vec<f32>>,
+}
+
+impl ZBuffer
+{
+    pub fn new(width: usize, height: usize, init_val: f32) -> Self
+    {
+        let depth_buffer: Vec<Vec<f32>> = (0..width).map(|_| {
+            let col: Vec<f32> = (0..height).map(|_| init_val).collect();
+            return col;
+        }).collect();
+        ZBuffer {
+            depth_buffer
+        }
+    }
+
+    pub fn reset(&mut self, val: f32) {
+        self.depth_buffer.iter_mut().for_each(|col| col.iter_mut().for_each(|depth| *depth = val));
+    }
+
+    pub fn update(&mut self, x: usize, y: usize, val: f32) -> bool
+    {
+        let old = self._get(x, y);
+        return if *old > val
+        {
+            *old = val;
+            true
+        } else {
+            false
+        };
+    }
+
+    pub fn get(&self, x: usize, y: usize) -> f32
+    {
+        unsafe {
+            return *self.depth_buffer.get_unchecked(x).get_unchecked(y);
+        }
+    }
+
+    #[inline]
+    fn _get(&mut self, x: usize, y: usize) -> &mut f32
+    {
+        unsafe {
+            return self.depth_buffer.get_unchecked_mut(x).get_unchecked_mut(y);
+        }
+    }
 }
 
 pub fn shade(fragment: &Fragment, light: &Light, material: &Material) -> Color
