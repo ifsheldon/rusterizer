@@ -6,10 +6,10 @@ use pixel_canvas::{Canvas, Color, XY};
 use rayon::prelude::*;
 use tobj::Mesh;
 
-use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarDiv, ScalarMul, Transpose, Vec3, Vec4};
+use crate::data::{Add, Cross, Mat4, MatVecDot, Minus, Normalize, ScalarDiv, ScalarMul, Transpose, Vec3, Vec4, VecDot};
 use crate::shading::*;
 use crate::state::KeyboardMouseStates;
-use crate::transformations::perspective;
+use crate::transformations::{perspective, rotate_obj};
 
 mod err;
 mod data;
@@ -17,7 +17,7 @@ mod state;
 mod transformations;
 mod shading;
 
-const OBJ_PATH: &'static str = "data/triangle_test_dc.obj";
+const OBJ_PATH: &'static str = "data/KAUST_Beacon.obj";
 const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
 const OBJ_BOUNDING_RADIUS: f32 = 125.0;
 
@@ -145,7 +145,7 @@ const WIDTH: usize = 400;
 const HEIGHT: usize = 400;
 
 fn main() {
-    let (mut models, _) = tobj::load_obj("data/KAUST_Beacon.obj", true).expect("Loading Error");
+    let (mut models, _) = tobj::load_obj(OBJ_PATH, true).expect("Loading Error");
     println!("model num = {}", models.len());
     let model = models.pop().unwrap();
     let mesh = model.mesh;
@@ -157,7 +157,7 @@ fn main() {
     let vertices_os = get_position_os(&mesh);
     let adj_vertices_map = get_adj_vertices(&mesh);
     let identity = Mat4::identity();
-    let obj_translation = Vec3::new_xyz(-110.0, -90.0, -130.0);
+    let obj_translation = Vec3::new_xyz(-OBJECT_CENTER.0, -OBJECT_CENTER.1, -OBJECT_CENTER.2);
     let obj_os_to_wc_transformation = transformations::translate_obj(&identity, &obj_translation);
     let vertices_wc: Vec<Vertex> = vertices_os.par_iter().map(|v_os| Vertex {
         position: obj_os_to_wc_transformation.mat_vec_dot(&v_os.position),
@@ -183,14 +183,57 @@ fn main() {
         .input(KeyboardMouseStates::handle_input);
 
     let now = Instant::now();
-
-    let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, 200.0);
+    let os_windows = cfg!(windows);
+    let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, 1.5 * OBJ_BOUNDING_RADIUS);
+    let near = 0.01;
+    let far = 3.0 * OBJ_BOUNDING_RADIUS;
+    let mut arc_ball_initialized = false;
+    let mut arc_ball_previous = Vec3::new_xyz(0.0, 0.0, 0.0);
     canvas.render(move |state, frame_buffer_image| {
+        frame_buffer_image.par_iter_mut().for_each(|e| *e = Color::BLACK);
         if state.received_mouse_press
         {
             let x = state.x;
             let y = state.y;
-            println!("{} {}", x,y);
+            // on windows, things get weird
+            // y -100, 400
+            // x 0, 500
+            let mut normalized_x = match os_windows {
+                true => ((x as f32) * 0.8) / (WIDTH as f32),
+                false => (x as f32) / (WIDTH as f32)
+            };
+            let mut normalized_y = match os_windows {
+                true => ((y as f32) + 100.0) * 0.8 / (HEIGHT as f32),
+                false => (y as f32) / (HEIGHT as f32)
+            };
+            let sqr = normalized_x * normalized_x - normalized_y * normalized_y;
+            let z = if sqr < 1.0 { (1.0 - sqr).sqrt() } else {
+                let len = sqr.sqrt();
+                normalized_x /= len;
+                normalized_y /= len;
+                0.0
+            };
+            let mut v = Vec3::new_xyz(normalized_x, normalized_y, z);
+            v.normalize_();
+            if arc_ball_initialized
+            {
+                let mut rotate_axis = v.cross(&arc_ball_previous);
+                rotate_axis.normalize_();
+                let sin = v.dot(&arc_ball_previous);
+                let rotate_angle_rad = sin.asin();
+                let rotate_mat = rotate_obj(&identity, rotate_angle_rad, &rotate_axis);
+                let mut cam_pos_wc_v4 = rotate_mat.mat_vec_dot(&Vec4::from(&cam_pos_wc, 1.0));
+                cam_pos_wc_v4.scalar_div_(cam_pos_wc_v4.w());
+                cam_pos_wc.set_x(cam_pos_wc_v4.x());
+                cam_pos_wc.set_y(cam_pos_wc_v4.y());
+                cam_pos_wc.set_z(cam_pos_wc_v4.z());
+            } else {
+                arc_ball_initialized = true;
+                arc_ball_previous.set_x(normalized_x);
+                arc_ball_previous.set_y(normalized_y);
+                arc_ball_previous.set_z(z);
+                arc_ball_previous.normalize_();
+            }
         }
         state.reset_flags();
         let camera = Camera::new(cam_pos_wc,
@@ -231,7 +274,7 @@ fn main() {
             };
             let vertices_colors = gouraud_shade(&vertices_ec, &normal_ec, &light_ec, &silver_material);
             let triangles_ec = get_triangles(&vertices_ec, &vertices_colors, &mesh);
-            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), near, far);
             fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
         } else {
             light_ec = Light {
