@@ -48,6 +48,11 @@ pub trait ScalarMul<Output = Self> {
     fn scalar_mul_(&mut self, s: f32);
 }
 
+pub trait ScalarDiv<Output = Self> {
+    fn scalar_div(&self, s: f32) -> Output;
+    fn scalar_div_(&mut self, s: f32);
+}
+
 pub trait Cross<Rhs = Self> {
     fn cross(&self, other: &Rhs) -> Rhs;
 }
@@ -258,6 +263,57 @@ impl _Mat for Mat4 {
         } else {
             self.data[row][col] = val;
         }
+    }
+}
+
+impl ScalarDiv for Mat4 {
+    fn scalar_div(&self, s: f32) -> Self {
+        let mut data = self.data.clone();
+        data[0][0] /= s;
+        data[0][1] /= s;
+        data[0][2] /= s;
+        data[0][3] /= s;
+
+        data[1][0] /= s;
+        data[1][1] /= s;
+        data[1][2] /= s;
+        data[1][3] /= s;
+
+        data[2][0] /= s;
+        data[2][1] /= s;
+        data[2][2] /= s;
+        data[2][3] /= s;
+
+        data[3][0] /= s;
+        data[3][1] /= s;
+        data[3][2] /= s;
+        data[3][3] /= s;
+        Mat4 {
+            transposed: self.transposed,
+            data,
+        }
+    }
+
+    fn scalar_div_(&mut self, s: f32) {
+        self.data[0][0] /= s;
+        self.data[0][1] /= s;
+        self.data[0][2] /= s;
+        self.data[0][3] /= s;
+
+        self.data[1][0] /= s;
+        self.data[1][1] /= s;
+        self.data[1][2] /= s;
+        self.data[1][3] /= s;
+
+        self.data[2][0] /= s;
+        self.data[2][1] /= s;
+        self.data[2][2] /= s;
+        self.data[2][3] /= s;
+
+        self.data[3][0] /= s;
+        self.data[3][1] /= s;
+        self.data[3][2] /= s;
+        self.data[3][3] /= s;
     }
 }
 
@@ -485,6 +541,42 @@ impl _Mat for Mat3 {
         } else {
             self.data[row][col] = val;
         }
+    }
+}
+
+impl ScalarDiv for Mat3 {
+    fn scalar_div(&self, s: f32) -> Self {
+        let mut data = self.data.clone();
+        data[0][0] /= s;
+        data[0][1] /= s;
+        data[0][2] /= s;
+
+        data[1][0] /= s;
+        data[1][1] /= s;
+        data[1][2] /= s;
+
+        data[2][0] /= s;
+        data[2][1] /= s;
+        data[2][2] /= s;
+
+        Mat3 {
+            transposed: self.transposed,
+            data,
+        }
+    }
+
+    fn scalar_div_(&mut self, s: f32) {
+        self.data[0][0] /= s;
+        self.data[0][1] /= s;
+        self.data[0][2] /= s;
+
+        self.data[1][0] /= s;
+        self.data[1][1] /= s;
+        self.data[1][2] /= s;
+
+        self.data[2][0] /= s;
+        self.data[2][1] /= s;
+        self.data[2][2] /= s;
     }
 }
 
@@ -717,6 +809,19 @@ impl Normalize for Vec3 {
         self.data[0] /= l;
         self.data[1] /= l;
         self.data[2] /= l;
+    }
+}
+
+impl ScalarDiv for Vec3 {
+    fn scalar_div(&self, s: f32) -> Self {
+        let vec = Vec3::new_xyz(self.x() / s, self.y() / s, self.z() / s);
+        return vec;
+    }
+
+    fn scalar_div_(&mut self, s: f32) {
+        self.data[0] /= s;
+        self.data[1] /= s;
+        self.data[2] /= s;
     }
 }
 
@@ -998,6 +1103,20 @@ impl Normalize for Vec4 {
         self.data[1] /= l;
         self.data[2] /= l;
         self.data[3] /= l;
+    }
+}
+
+impl ScalarDiv for Vec4 {
+    fn scalar_div(&self, s: f32) -> Self {
+        let vec = Vec4::new_xyzw(self.x() / s, self.y() / s, self.z() / s, self.w() / s);
+        return vec;
+    }
+
+    fn scalar_div_(&mut self, s: f32) {
+        self.data[0] /= s;
+        self.data[1] /= s;
+        self.data[2] /= s;
+        self.data[3] /= s;
     }
 }
 
