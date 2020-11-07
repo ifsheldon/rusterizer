@@ -20,6 +20,10 @@ mod shading;
 const OBJ_PATH: &'static str = "data/KAUST_Beacon.obj";
 const OBJECT_CENTER: (f32, f32, f32) = (125.0, 125.0, 125.0);
 const OBJ_BOUNDING_RADIUS: f32 = 125.0;
+const FOV_Y: f32 = std::f32::consts::FRAC_PI_4 * 2.5;
+const NEAR: f32 = 0.01;
+const FAR: f32 = 3.0 * OBJ_BOUNDING_RADIUS;
+const CAMERA_Z_WC: f32 = 1.5 * OBJ_BOUNDING_RADIUS;
 
 pub fn get_position_os(mesh: &Mesh) -> Vec<Vertex>
 {
@@ -184,9 +188,7 @@ fn main() {
 
     let now = Instant::now();
     let os_windows = cfg!(windows);
-    let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, 1.5 * OBJ_BOUNDING_RADIUS);
-    let near = 0.01;
-    let far = 3.0 * OBJ_BOUNDING_RADIUS;
+    let mut cam_pos_wc = Vec3::new_xyz(0.0, 0.0, CAMERA_Z_WC);
     let mut arc_ball_initialized = false;
     let mut arc_ball_previous = Vec3::new_xyz(0.0, 0.0, 0.0);
 
@@ -285,7 +287,7 @@ fn main() {
             };
             let vertices_colors = gouraud_shade(&vertices_ec, &normal_ec, &light_ec, &silver_material);
             let triangles_ec = get_triangles(&vertices_ec, &vertices_colors, &mesh);
-            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), near, far);
+            let proj_mat = perspective(FOV_Y, (WIDTH as f32) / (HEIGHT as f32), NEAR, FAR);
             fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
         } else {
             light_ec = Light {
@@ -295,7 +297,7 @@ fn main() {
                 diffuse: Vec3::new_rgb(0.7, 0.7, 0.7),
             };
             let triangles_ec = get_triangles(&vertices_ec, &normal_ec, &mesh);
-            let proj_mat = perspective(90_f32.to_radians(), (WIDTH as f32) / (HEIGHT as f32), 0.1, 500.0);
+            let proj_mat = perspective(FOV_Y, (WIDTH as f32) / (HEIGHT as f32), NEAR, FAR);
             fragments = rasterization(&triangles_ec, &proj_mat, WIDTH as u32, HEIGHT as u32);
         }
         let mut survived_fragments = Vec::new();
