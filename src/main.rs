@@ -3,6 +3,7 @@ use std::ops::IndexMut;
 use std::time::Instant;
 
 use pixel_canvas::{Canvas, Color, XY};
+use pixel_canvas::input::glutin::event::VirtualKeyCode;
 use rayon::prelude::*;
 use tobj::Mesh;
 
@@ -179,7 +180,7 @@ fn main() {
     };
 
     let mut zbuff = ZBuffer::new(WIDTH, HEIGHT, f32::MAX);
-    let gouraud_shading = true;
+    let mut gouraud_shading = true;
 
     let canvas = Canvas::new(WIDTH, HEIGHT)
         .title("Rusterizer")
@@ -246,6 +247,22 @@ fn main() {
                 arc_ball_previous.set_y(normalized_y);
                 arc_ball_previous.set_z(z);
                 arc_ball_previous.normalize_();
+            }
+        }
+
+        if state.received_keycode
+        {
+            match state.keycode
+            {
+                VirtualKeyCode::P => {
+                    gouraud_shading = false;
+                    println!("Using Phong Shading");
+                }
+                VirtualKeyCode::G => {
+                    gouraud_shading = true;
+                    println!("Using Gouraud Shading");
+                }
+                _ => {}
             }
         }
         state.reset_flags();
@@ -331,8 +348,15 @@ fn main() {
 
         if i % interval == 0 {
             i = 0;
-            println!("Rasterization Time EMA {} ms", raster_time_ema);
-            println!("Shading Time EMA {} ms", shading_time_ema);
+            if gouraud_shading
+            {
+                println!("\nUsing Gouraud Shading, press P to use Phong Shading");
+            }
+            else {
+                println!("\nUsing Phong Shading, press G to use Phong Shading");
+            }
+            println!("    Rasterization Time EMA {} ms", raster_time_ema);
+            println!("    Shading Time EMA {} ms", shading_time_ema);
         }
         i += 1;
         zbuff.reset(f32::MAX);
