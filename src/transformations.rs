@@ -101,7 +101,6 @@ pub fn perspective(fovy_rad: f32, aspect: f32, near: f32, far: f32) -> Mat4
     mat._set_entry(0, 0, 1.0 / (aspect * tan_half_fovy));
     mat._set_entry(1, 1, 1.0 / tan_half_fovy);
     mat._set_entry(2, 2, -(near + far) / (far - near));
-    //TODO: check the sign of below two lines
     mat._set_entry(3, 2, -1.0);
     mat._set_entry(2, 3, -(2.0 * far * near) / (far - near));
     return mat;
