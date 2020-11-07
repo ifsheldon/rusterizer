@@ -198,7 +198,7 @@ fn main() {
     let ema_alpha = 0.95;
     let ema_beta = 1. - ema_alpha;
 
-    let interval = 5;
+    let every_n_frames = 10;
     let mut i = 0;
 
     canvas.render(move |state, frame_buffer_image| {
@@ -346,14 +346,14 @@ fn main() {
         let after_shading = now.elapsed().as_millis();
         shading_time_ema = ema_alpha * shading_time_ema + ema_beta * (after_shading - before_shading) as f32;
 
-        if i % interval == 0 {
+        if i % every_n_frames == 0 {
             i = 0;
             if gouraud_shading
             {
                 println!("\nUsing Gouraud Shading, press P to use Phong Shading");
             }
             else {
-                println!("\nUsing Phong Shading, press G to use Phong Shading");
+                println!("\nUsing Phong Shading, press G to use Gouraud Shading");
             }
             println!("    Rasterization Time EMA {} ms", raster_time_ema);
             println!("    Shading Time EMA {} ms", shading_time_ema);
